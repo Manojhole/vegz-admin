@@ -400,6 +400,34 @@ def create_order(payload:OrderIn,admin:AdminUser=Depends(require_admin),db:Sessi
         agent=db.get(AgentRecord,payload.agent_id)
         if agent is None or agent.status!="approved":raise HTTPException(status_code=422,detail="Assigned agent must exist and be approved.")
     obj=OrderRecord(**payload.model_dump());db.add(obj);db.flush();_audit(db,admin,"create","order",obj.id,"Created order "+obj.public_code);db.commit();db.refresh(obj);return _order(obj)
+@app.patch("/api/orders/{order_id}")
+def patch_order(order_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
+    allowed_fields={"customer_name","customer_phone","shop_id","agent_id","address","total_amount","payment_status","source","external_ref"}
+    if not payload or set(payload)-allowed_fields:
+        raise HTTPException(status_code=422,detail="Provide only supported order fields; use the status endpoint for workflow transitions.")
+    obj=db.get(OrderRecord,order_id)
+    if obj is None: raise HTTPException(status_code=404,detail="Order not found.")
+    if "shop_id" in payload and payload["shop_id"] is not None and db.get(ShopRecord,payload["shop_id"]) is None:
+        raise HTTPException(status_code=404,detail="Shop not found.")
+    if "agent_id" in payload and payload["agent_id"] is not None:
+        candidate=db.get(AgentRecord,payload["agent_id"])
+        if candidate is None or candidate.status!="approved":
+            raise HTTPException(status_code=422,detail="Assigned agent must exist and be approved.")
+    if "total_amount" in payload:
+        try:
+            value=Decimal(str(payload["total_amount"]))
+            if value<0 or value>Decimal("10000000"): raise ValueError()
+            payload["total_amount"]=value
+        except Exception:
+            raise HTTPException(status_code=422,detail="Order total is outside the allowed range.")
+    if "payment_status" in payload and payload["payment_status"] not in {"pending","paid","failed","refunded"}:
+        raise HTTPException(status_code=422,detail="Invalid payment status.")
+    for key,value in payload.items(): setattr(obj,key,value)
+    obj.updated_at=datetime.utcnow()
+    _audit(db,admin,"update","order",obj.id,"Updated fields="+",".join(payload.keys()))
+    db.commit();db.refresh(obj);return _order(obj)
+
+
 @app.patch("/api/orders/{order_id}/status")
 def patch_order_status(order_id:int,payload:EntityStatus,admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
     allowed={"placed":{"confirmed","cancelled"},"confirmed":{"preparing","cancelled"},"preparing":{"ready_for_pickup","cancelled"},"ready_for_pickup":{"assigned","cancelled"},"assigned":{"picked_up","cancelled"},"picked_up":{"out_for_delivery","cancelled"},"out_for_delivery":{"delivered","delivery_failed"},"delivery_failed":{"assigned","cancelled"},"delivered":{"refunded"},"cancelled":set(),"refunded":set()}
