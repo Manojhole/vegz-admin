@@ -44,7 +44,7 @@ Set BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD in .env before starting t
 docker compose up --build
 ```
 
-Compose defaults are for local development only; override all password and token-secret values before sharing a running environment. The container persists its SQLite file in a Docker volume.
+Compose requires explicit JWT_SECRET, BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD values in your shell or .env file. Copy backend/.env.example to .env and replace the example values before starting it; the bootstrap password must be at least 14 characters. The container persists its SQLite file in a Docker volume.
 
 ## Environment
 
