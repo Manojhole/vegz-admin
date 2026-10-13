@@ -461,7 +461,7 @@ def patch_order(order_id:int,payload:dict[str,Any],admin:AdminUser=Depends(requi
 
 @app.patch("/api/orders/{order_id}/status")
 def patch_order_status(order_id:int,payload:EntityStatus,admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
-    allowed={"placed":{"confirmed","cancelled"},"confirmed":{"preparing","cancelled"},"preparing":{"ready_for_pickup","cancelled"},"ready_for_pickup":{"assigned","cancelled"},"assigned":{"picked_up","cancelled"},"picked_up":{"out_for_delivery","cancelled"},"out_for_delivery":{"delivered","delivery_failed"},"delivery_failed":{"assigned","cancelled"},"delivered":{"refunded"},"cancelled":set(),"refunded":set()}
+    allowed={"placed":{"confirmed","cancelled"},"confirmed":{"preparing","cancelled"},"preparing":{"ready_for_pickup","cancelled"},"ready_for_pickup":{"cancelled"},"assigned":{"picked_up","cancelled"},"picked_up":{"out_for_delivery","cancelled"},"out_for_delivery":{"delivered","delivery_failed"},"delivery_failed":{"cancelled"},"delivered":{"refunded"},"cancelled":set(),"refunded":set()}
     obj=db.get(OrderRecord,order_id)
     if obj is None:raise HTTPException(status_code=404,detail="Order not found.")
     nxt=payload.status.strip().lower()
