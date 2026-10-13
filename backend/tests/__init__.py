@@ -1,0 +1,1 @@
+"""Vegz Admin API tests."""
