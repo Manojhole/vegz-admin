@@ -7,7 +7,7 @@ db_file.close()
 os.environ["DATABASE_URL"] = "sqlite:///" + db_file.name
 os.environ["APP_ENV"] = "development"
 os.environ["JWT_SECRET"] = "test-admin-secret-with-at-least-thirty-two-chars"
-os.environ["BOOTSTRAP_ADMIN_EMAIL"] = "root@example.test"
+os.environ["BOOTSTRAP_ADMIN_EMAIL"] = "root@example.com"
 os.environ["BOOTSTRAP_ADMIN_PASSWORD"] = "test-admin-password-long-123"
 os.environ["BOOTSTRAP_ADMIN_NAME"] = "Test Root"
 
@@ -20,7 +20,7 @@ client = TestClient(app)
 class AdminApiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        login = client.post("/api/auth/login", json={"email": "root@example.test", "password": "test-admin-password-long-123"})
+        login = client.post("/api/auth/login", json={"email": "root@example.com", "password": "test-admin-password-long-123"})
         if login.status_code != 200:
             raise RuntimeError(f"Test administrator login failed: {login.text}")
         cls.headers = {"Authorization": "Bearer " + login.json()["access_token"]}
