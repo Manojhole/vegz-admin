@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#145d3d">
+<title>Vegz Admin — Platform Operations</title><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<section id="login-screen" class="login-wrap">
+ <div class="login-card"><div class="brand"><span class="brand-mark">v</span><span>vegz<span class="brand-light">admin</span></span></div>
+ <p class="eyebrow">PLATFORM CONTROL CENTER</p><h1>One console.<br><span>Full visibility.</span></h1><p class="muted">Monitor operations, onboard partners, manage orders and keep the Vegz platform running.</p>
+ <form id="login-form"><label for="login-email">Administrator email</label><input id="login-email" type="email" autocomplete="username" required placeholder="admin@yourdomain.com"><label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" required placeholder="Your admin password"><button class="btn primary full" type="submit">Sign in securely <span>↗</span></button></form>
+ <p class="hint">Admin accounts are created from server environment configuration or by a super administrator. No public sign-up is available.</p></div>
+ <div class="login-art"><div class="art-label">VEGZ OPERATIONS</div><div class="art-glyph">⌘</div><h2>From fresh<br>produce to<br>front door.</h2><p>See the whole operation, make informed decisions, and keep every part moving.</p><div class="art-bottom"><span class="live-dot"></span> Platform operations workspace</div></div>
+</section>
+
+<div id="app-shell" class="shell hidden">
+<aside class="sidebar"><div class="brand"><span class="brand-mark">v</span><span>vegz<span class="brand-light">admin</span></span></div>
+ <div class="admin-mini"><div class="admin-avatar">A</div><div><strong id="sidebar-admin-name">Platform Admin</strong><small id="sidebar-admin-role">Super admin</small></div><span class="online-dot"></span></div>
+ <nav id="nav">
+ <div class="nav-section">OVERVIEW</div><button class="nav-item active" data-view="dashboard"><span>▦</span> Dashboard</button>
+ <div class="nav-section">OPERATIONS</div><button class="nav-item" data-view="orders"><span>▣</span> Orders <span id="nav-orders-count" class="nav-count">0</span></button><button class="nav-item" data-view="shops"><span>⌂</span> Shops <span id="nav-shops-count" class="nav-count">0</span></button><button class="nav-item" data-view="agents"><span>♧</span> Delivery agents <span id="nav-agents-count" class="nav-count">0</span></button><button class="nav-item" data-view="products"><span>▤</span> Product moderation <span id="nav-products-count" class="nav-count">0</span></button><button class="nav-item" data-view="customers"><span>♙</span> Customers</button>
+ <div class="nav-section">PLATFORM</div><button class="nav-item" data-view="settings"><span>⚙</span> System settings</button><button class="nav-item" data-view="audit"><span>☷</span> Audit trail</button><button id="nav-admin-users" class="nav-item hidden" data-view="admins"><span>♙</span> Admin access</button>
+ </nav>
+ <div class="sidebar-note"><div class="note-icon">✦</div><strong>Operate with confidence</strong><p>Platform changes are tracked in the audit trail for accountability.</p></div>
+ <button id="logout-btn" class="logout-btn">↪ &nbsp; Sign out</button><div class="sidebar-foot">VEGZ ADMIN · INTERNAL USE</div>
+</aside>
+<main class="main">
+<header class="topbar"><div><div class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb-title">Dashboard</strong></div><h1 id="page-title">Platform overview <span class="wave">✦</span></h1><p id="page-subtitle">A current snapshot of the Vegz operational network.</p></div><div class="top-actions"><button id="refresh-btn" class="icon-btn" title="Refresh dashboard">↻</button><div class="profile"><div class="profile-avatar">A</div><div><strong id="top-admin-name">Platform Admin</strong><small id="top-admin-role">Super admin</small></div></div></div></header>
+
+<section id="view-dashboard" class="view">
+ <div class="hero-strip"><div><span class="hero-kicker">VEGZ CONTROL CENTER</span><h2>Good operations start <span>with visibility.</span></h2><p>Keep partners approved, orders moving and the customer experience reliable.</p><div class="hero-meta"><span class="live-dot"></span> Admin workspace <span class="meta-divider">·</span> Updated <span id="last-updated">just now</span></div></div><div class="hero-glyph">⌘</div></div>
+ <div id="integration-alert" class="integration-alert"><span class="alert-icon">ⓘ</span><span><strong>Integration status:</strong> figures below reflect the admin service's own records. Connect the shared Vegz order and partner APIs for live platform-wide control.</span></div>
+ <div class="stats-grid">
+ <article class="stat-card"><div class="stat-top"><span>Gross sales today</span><span class="stat-icon green">₹</span></div><div id="stat-sales" class="stat-value">₹0</div><div class="stat-foot">Orders recorded today</div></article>
+ <article class="stat-card"><div class="stat-top"><span>Active orders</span><span class="stat-icon blue">▣</span></div><div id="stat-active-orders" class="stat-value">0</div><div class="stat-foot"><span id="stat-total-orders">0</span> orders in total</div></article>
+ <article class="stat-card"><div class="stat-top"><span>Approved shops</span><span class="stat-icon lilac">⌂</span></div><div id="stat-shops" class="stat-value">0</div><div class="stat-foot"><span id="stat-pending-shops">0</span> awaiting review</div></article>
+ <article class="stat-card"><div class="stat-top"><span>Agents online</span><span class="stat-icon orange">♧</span></div><div id="stat-agents-online" class="stat-value">0</div><div class="stat-foot"><span id="stat-pending-agents">0</span> awaiting approval</div></article>
+ </div>
+ <div class="quick-grid"><button class="quick-action" data-goto="shops"><span class="quick-symbol green-bg">⌂</span><span><strong>Review shops</strong><small id="quick-pending-shops">Check new registrations</small></span><span class="quick-arrow">↗</span></button><button class="quick-action" data-goto="agents"><span class="quick-symbol blue-bg">♧</span><span><strong>Verify agents</strong><small id="quick-pending-agents">Review delivery partners</small></span><span class="quick-arrow">↗</span></button><button class="quick-action" data-goto="products"><span class="quick-symbol orange-bg">▤</span><span><strong>Moderate products</strong><small id="quick-pending-products">Check new listings</small></span><span class="quick-arrow">↗</span></button><button class="quick-action" data-goto="orders"><span class="quick-symbol purple-bg">▣</span><span><strong>Monitor orders</strong><small>Review active deliveries</small></span><span class="quick-arrow">↗</span></button></div>
+ <div class="section-heading"><div><h2>Latest orders</h2><p>Recent activity recorded in the platform console.</p></div><button class="text-btn" data-goto="orders">View all orders →</button></div>
+ <div class="table-card"><div class="table-scroll"><table><thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Payment</th><th>Status</th><th>Created</th></tr></thead><tbody id="recent-orders-body"></tbody></table></div><div id="recent-orders-empty" class="empty-inline hidden">No orders recorded yet.</div></div>
+ <div class="section-heading"><div><h2>Admin activity</h2><p>Recent changes made in this console.</p></div><button class="text-btn" data-goto="audit">Open audit trail →</button></div>
+ <div id="dashboard-audit" class="activity-list"></div>
+</section>
+
+<section id="view-shops" class="view hidden">
+ <div class="page-toolbar"><div class="search-wrap"><span>⌕</span><input id="shops-search" placeholder="Search shop, owner or phone..."></div><select id="shops-filter"><option value="">All statuses</option><option value="pending">Pending review</option><option value="approved">Approved</option><option value="suspended">Suspended</option><option value="rejected">Rejected</option></select><button class="btn primary" id="add-shop-btn">＋ Add shop</button></div>
+ <div class="content-note"><strong>Partner onboarding</strong><span>Approve a shop only after you verify its owner, contact details and address. Suspended shops are marked closed automatically.</span></div>
+ <div class="table-card"><div class="table-scroll"><table><thead><tr><th>Shop / owner</th><th>Contact</th><th>Location</th><th>Commission</th><th>Status</th><th>Availability</th><th>Actions</th></tr></thead><tbody id="shops-body"></tbody></table></div><div id="shops-empty" class="empty-inline hidden">No shops match these filters.</div></div>
+</section>
+
+<section id="view-agents" class="view hidden">
+ <div class="page-toolbar"><div class="search-wrap"><span>⌕</span><input id="agents-search" placeholder="Search agent, phone or vehicle..."></div><select id="agents-filter"><option value="">All statuses</option><option value="pending">Pending verification</option><option value="approved">Approved</option><option value="suspended">Suspended</option><option value="rejected">Rejected</option></select><button class="btn primary" id="add-agent-btn">＋ Add agent</button></div>
+ <div class="content-note"><strong>Delivery partner access</strong><span>Only approved agents should be enabled for assignments. Online state shown here reflects records in this admin service.</span></div>
+ <div class="table-card"><div class="table-scroll"><table><thead><tr><th>Agent</th><th>Contact</th><th>Vehicle</th><th>Registration</th><th>Status</th><th>Availability</th><th>Actions</th></tr></thead><tbody id="agents-body"></tbody></table></div><div id="agents-empty" class="empty-inline hidden">No agents match these filters.</div></div>
+</section>
+
+<section id="view-products" class="view hidden">
+ <div class="page-toolbar"><div class="search-wrap"><span>⌕</span><input id="products-search" placeholder="Search product name..."></div><select id="products-filter"><option value="">All statuses</option><option value="pending">Pending review</option><option value="approved">Approved</option><option value="blocked">Blocked</option></select><button class="btn primary" id="add-product-btn">＋ Add product</button></div>
+ <div class="content-note"><strong>Catalog governance</strong><span>Product moderation records are separate here until the shop catalog API is integrated. Price/stock changes here do not yet update customer listings.</span></div>
+ <div class="table-card"><div class="table-scroll"><table><thead><tr><th>Product</th><th>Shop</th><th>Category</th><th>Price</th><th>Stock</th><th>Moderation status</th><th>Actions</th></tr></thead><tbody id="products-body"></tbody></table></div><div id="products-empty" class="empty-inline hidden">No products match these filters.</div></div>
+</section>
+
+<section id="view-orders" class="view hidden">
+ <div class="page-toolbar"><div class="search-wrap"><span>⌕</span><input id="orders-search" placeholder="Search order code or customer..."></div><select id="orders-filter"><option value="">All statuses</option><option value="placed">Placed</option><option value="confirmed">Confirmed</option><option value="preparing">Preparing</option><option value="ready_for_pickup">Ready for pickup</option><option value="assigned">Assigned</option><option value="picked_up">Picked up</option><option value="out_for_delivery">Out for delivery</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option><option value="refunded">Refunded</option></select><button class="btn primary" id="add-order-btn">＋ Add order record</button></div>
+ <div class="content-note"><strong>Order control</strong><span>Use valid status transitions. Refund status here is an operational record; real payment refunds require a payment-gateway integration.</span></div>
+ <div class="table-card"><div class="table-scroll"><table><thead><tr><th>Order / customer</th><th>Shop</th><th>Agent</th><th>Total</th><th>Payment</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="orders-body"></tbody></table></div><div id="orders-empty" class="empty-inline hidden">No orders match these filters.</div></div>
+</section>
+
+<section id="view-customers" class="view hidden">
+ <div class="page-toolbar"><div class="search-wrap"><span>⌕</span><input id="customers-search" placeholder="Search customer, phone or email..."></div><button class="btn primary" id="add-customer-btn">＋ Add customer record</button></div>
+ <div class="content-note"><strong>Customer records</strong><span>Limit access to personal information to authorized support staff and use it only to resolve customer requests.</span></div>
+ <div class="table-card"><div class="table-scroll"><table><thead><tr><th>Customer</th><th>Phone</th><th>Email</th><th>Account status</th><th>External reference</th><th>Actions</th></tr></thead><tbody id="customers-body"></tbody></table></div><div id="customers-empty" class="empty-inline hidden">No customers match your search.</div></div>
+</section>
+
+<section id="view-settings" class="view hidden">
+ <div class="content-note"><strong>Platform-wide configuration</strong><span>These values are stored by the admin service. They affect other apps only after the shared configuration API is connected.</span></div>
+ <div id="settings-grid" class="settings-grid"></div>
+ <div class="settings-card danger-zone"><div><h3>Maintenance mode</h3><p>Use this to indicate planned platform maintenance once the customer app checks the shared setting.</p></div><span class="settings-symbol">⚑</span></div>
+</section>
+
+<section id="view-audit" class="view hidden">
+ <div class="page-toolbar"><div><h2 class="toolbar-title">Administrator audit trail</h2><p class="toolbar-subtitle">A timestamped record of important console actions.</p></div><button class="btn secondary" id="refresh-audit-btn">↻ Refresh</button></div>
+ <div class="table-card"><div class="table-scroll"><table><thead><tr><th>Time</th><th>Administrator</th><th>Action</th><th>Entity</th><th>Reference</th><th>Details</th></tr></thead><tbody id="audit-body"></tbody></table></div><div id="audit-empty" class="empty-inline hidden">No audit events yet.</div></div>
+</section>
+
+<section id="view-admins" class="view hidden">
+ <div class="page-toolbar"><div><h2 class="toolbar-title">Admin access</h2><p class="toolbar-subtitle">Create and deactivate console accounts.</p></div><button class="btn primary" id="add-admin-btn">＋ Add admin</button></div>
+ <div class="content-note"><strong>Least privilege</strong><span>Only the super administrator can manage accounts. Give each person the smallest role needed for their work.</span></div>
+ <div class="table-card"><div class="table-scroll"><table><thead><tr><th>Administrator</th><th>Role</th><th>Status</th><th>Last login</th><th>Actions</th></tr></thead><tbody id="admins-body"></tbody></table></div><div id="admins-empty" class="empty-inline hidden">No administrator accounts found.</div></div>
+</section>
+<footer class="main-footer"><span>© Vegz Admin</span><span>Internal platform operations <span class="footer-leaf">✦</span></span></footer>
+</main></div>
+
+<dialog id="entity-dialog" class="modal"><form id="entity-form" method="dialog"><div class="modal-head"><div><span class="eyebrow" id="modal-eyebrow">PLATFORM OPERATIONS</span><h2 id="modal-title">Add record</h2><p id="modal-description">Manage a platform record.</p></div><button type="button" id="close-modal" class="close-btn" aria-label="Close">×</button></div><div id="modal-fields" class="modal-fields"></div><div class="modal-actions"><button type="button" class="btn secondary" id="cancel-modal">Cancel</button><button type="submit" class="btn primary" id="save-modal">Save changes</button></div></form></dialog>
+<script src="/app.js" defer></script>
+</body></html>
