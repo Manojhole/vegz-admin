@@ -336,6 +336,14 @@ def patch_shop(shop_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require
     if not payload or set(payload)-allowed:raise HTTPException(status_code=422,detail="Provide only supported shop fields.")
     obj=db.get(ShopRecord,shop_id)
     if obj is None:raise HTTPException(status_code=404,detail="Shop not found.")
+    if "status" in payload and payload["status"] not in {"pending","approved","suspended","rejected"}:
+        raise HTTPException(status_code=422,detail="Invalid shop status.")
+    if "commission_pct" in payload:
+        try:
+            pct=Decimal(str(payload["commission_pct"]))
+            if pct<0 or pct>100: raise ValueError()
+            payload["commission_pct"]=pct
+        except Exception: raise HTTPException(status_code=422,detail="Commission must be between 0 and 100.")
     for key,value in payload.items():setattr(obj,key,value)
     if obj.status!="approved":obj.is_open=False;obj.accepts_orders=False
     obj.updated_at=datetime.utcnow();_audit(db,admin,"update","shop",obj.id,"Updated fields="+",".join(payload.keys()));db.commit();db.refresh(obj);return _shop(obj)
@@ -360,6 +368,8 @@ def patch_agent(agent_id:int,payload:dict[str,Any],admin:AdminUser=Depends(requi
     if not payload or set(payload)-allowed:raise HTTPException(status_code=422,detail="Provide only supported agent fields.")
     obj=db.get(AgentRecord,agent_id)
     if obj is None:raise HTTPException(status_code=404,detail="Agent not found.")
+    if "status" in payload and payload["status"] not in {"pending","approved","suspended","rejected"}:
+        raise HTTPException(status_code=422,detail="Invalid agent status.")
     for key,value in payload.items():setattr(obj,key,value)
     if obj.status!="approved":obj.is_online=False
     obj.updated_at=datetime.utcnow();_audit(db,admin,"update","agent",obj.id,"Updated fields="+",".join(payload.keys()));db.commit();db.refresh(obj);return _agent(obj)
@@ -382,6 +392,18 @@ def patch_product(product_id:int,payload:dict[str,Any],admin:AdminUser=Depends(r
     if not payload or set(payload)-allowed:raise HTTPException(status_code=422,detail="Provide only supported product fields.")
     obj=db.get(ProductRecord,product_id)
     if obj is None:raise HTTPException(status_code=404,detail="Product not found.")
+    if "status" in payload and payload["status"] not in {"pending","approved","blocked"}:
+        raise HTTPException(status_code=422,detail="Invalid product status.")
+    if "shop_id" in payload and payload["shop_id"] is not None and db.get(ShopRecord,payload["shop_id"]) is None:
+        raise HTTPException(status_code=404,detail="Shop not found.")
+    if "price" in payload:
+        try:
+            price=Decimal(str(payload["price"]))
+            if price<=0 or price>Decimal("1000000"): raise ValueError()
+            payload["price"]=price
+        except Exception: raise HTTPException(status_code=422,detail="Product price must be positive and within the allowed range.")
+    if "stock_qty" in payload and (not isinstance(payload["stock_qty"],int) or payload["stock_qty"]<0 or payload["stock_qty"]>10000000):
+        raise HTTPException(status_code=422,detail="Stock quantity must be a non-negative whole number.")
     for key,value in payload.items():setattr(obj,key,value)
     obj.updated_at=datetime.utcnow();_audit(db,admin,"update","product",obj.id,"Updated fields="+",".join(payload.keys()));db.commit();db.refresh(obj);return _product(obj)
 
@@ -399,6 +421,9 @@ def create_order(payload:OrderIn,admin:AdminUser=Depends(require_admin),db:Sessi
     if payload.agent_id is not None:
         agent=db.get(AgentRecord,payload.agent_id)
         if agent is None or agent.status!="approved":raise HTTPException(status_code=422,detail="Assigned agent must exist and be approved.")
+    if payload.payment_status not in {"pending","paid","failed","refunded"}:raise HTTPException(status_code=422,detail="Invalid payment status.")
+    if payload.status not in {"placed","confirmed","preparing","ready_for_pickup","assigned","picked_up","out_for_delivery","delivered","delivery_failed","cancelled","refunded"}:raise HTTPException(status_code=422,detail="Invalid order status.")
+    if payload.status=="assigned" and payload.agent_id is None:raise HTTPException(status_code=422,detail="Assigned orders must have an agent.")
     obj=OrderRecord(**payload.model_dump());db.add(obj);db.flush();_audit(db,admin,"create","order",obj.id,"Created order "+obj.public_code);db.commit();db.refresh(obj);return _order(obj)
 @app.patch("/api/orders/{order_id}")
 def patch_order(order_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
@@ -423,7 +448,7 @@ def patch_order(order_id:int,payload:dict[str,Any],admin:AdminUser=Depends(requi
     if "payment_status" in payload and payload["payment_status"] not in {"pending","paid","failed","refunded"}:
         raise HTTPException(status_code=422,detail="Invalid payment status.")
     if "status" in payload:
-        transitions={"placed":{"confirmed","cancelled"},"confirmed":{"preparing","cancelled"},"preparing":{"ready_for_pickup","cancelled"},"ready_for_pickup":{"assigned","cancelled"},"assigned":{"picked_up","cancelled"},"picked_up":{"out_for_delivery","cancelled"},"out_for_delivery":{"delivered","delivery_failed"},"delivery_failed":{"assigned","cancelled"},"delivered":{"refunded"},"cancelled":set(),"refunded":set()}
+        transitions={"placed":{"confirmed","cancelled"},"confirmed":{"preparing","cancelled"},"preparing":{"ready_for_pickup","cancelled"},"ready_for_pickup":{"cancelled"},"assigned":{"picked_up","cancelled"},"picked_up":{"out_for_delivery","cancelled"},"out_for_delivery":{"delivered","delivery_failed"},"delivery_failed":{"cancelled"},"delivered":{"refunded"},"cancelled":set(),"refunded":set()}
         desired=str(payload["status"]).strip().lower()
         if desired != obj.status and desired not in transitions.get(obj.status,set()):
             raise HTTPException(status_code=409,detail=f"Cannot transition {obj.status} to {desired}.")
@@ -447,6 +472,7 @@ def assign_order(order_id:int,payload:AssignmentIn,admin:AdminUser=Depends(requi
     obj=db.get(OrderRecord,order_id);agent=db.get(AgentRecord,payload.agent_id)
     if obj is None:raise HTTPException(status_code=404,detail="Order not found.")
     if agent is None or agent.status!="approved":raise HTTPException(status_code=422,detail="Agent must be approved before receiving orders.")
+    if not agent.is_online:raise HTTPException(status_code=409,detail="Only an online agent can receive a delivery assignment.")
     if obj.status not in {"ready_for_pickup","delivery_failed","assigned"}:raise HTTPException(status_code=409,detail="Order must be ready for pickup or awaiting reassignment.")
     old=obj.agent_id;obj.agent_id=agent.id;obj.status="assigned";obj.updated_at=datetime.utcnow();_audit(db,admin,"assign","order",obj.id,f"Agent {old} -> {agent.id}");db.commit();db.refresh(obj);return _order(obj)
 
@@ -466,6 +492,8 @@ def patch_customer(customer_id:int,payload:dict[str,Any],admin:AdminUser=Depends
     if not payload or set(payload)-allowed:raise HTTPException(status_code=422,detail="Provide only supported customer fields.")
     obj=db.get(CustomerRecord,customer_id)
     if obj is None:raise HTTPException(status_code=404,detail="Customer not found.")
+    if "status" in payload and payload["status"] not in {"active","suspended","blocked"}:
+        raise HTTPException(status_code=422,detail="Invalid customer status.")
     for key,value in payload.items():setattr(obj,key,value)
     _audit(db,admin,"update","customer",obj.id,"Updated fields="+",".join(payload.keys()));db.commit();db.refresh(obj);return _customer(obj)
 
