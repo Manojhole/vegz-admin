@@ -16,3 +16,7 @@ jobs:
       - run: python -m compileall -q backend
       - run: python -m unittest discover -s backend/tests -v
       - run: python -c "from backend.app.main import app; print(app.title)"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --check frontend/app.js
