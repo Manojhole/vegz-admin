@@ -311,7 +311,7 @@ def dashboard(admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db))
     return {"shops":{"total":db.scalar(select(func.count(ShopRecord.id))) or 0,"pending":db.scalar(select(func.count(ShopRecord.id)).where(ShopRecord.status=="pending")) or 0,"active":db.scalar(select(func.count(ShopRecord.id)).where(ShopRecord.status=="approved")) or 0},
     "agents":{"total":db.scalar(select(func.count(AgentRecord.id))) or 0,"pending":db.scalar(select(func.count(AgentRecord.id)).where(AgentRecord.status=="pending")) or 0,"online":db.scalar(select(func.count(AgentRecord.id)).where(AgentRecord.is_online.is_(True),AgentRecord.status=="approved")) or 0},
     "products":{"total":db.scalar(select(func.count(ProductRecord.id))) or 0,"pending":db.scalar(select(func.count(ProductRecord.id)).where(ProductRecord.status=="pending")) or 0},
-    "orders":{"total":db.scalar(select(func.count(OrderRecord.id))) or 0,"active":db.scalar(select(func.count(OrderRecord.id)).where(OrderRecord.status.not_in(["delivered","cancelled","refunded"]))) or 0,"today":db.scalar(select(func.count(OrderRecord.id)).where(func.date(OrderRecord.created_at)==str(today)) or 0),"gross_sales_today":float(db.scalar(select(func.coalesce(func.sum(OrderRecord.total_amount),0)).where(func.date(OrderRecord.created_at)==str(today),OrderRecord.status!="cancelled")) or 0)},
+    "orders":{"total":db.scalar(select(func.count(OrderRecord.id))) or 0,"active":db.scalar(select(func.count(OrderRecord.id)).where(OrderRecord.status.not_in(["delivered","cancelled","refunded"]))) or 0,"today":(db.scalar(select(func.count(OrderRecord.id)).where(func.date(OrderRecord.created_at)==str(today))) or 0),"gross_sales_today":float(db.scalar(select(func.coalesce(func.sum(OrderRecord.total_amount),0)).where(func.date(OrderRecord.created_at)==str(today),OrderRecord.status!="cancelled")) or 0)},
     "recent_orders":[_order(o) for o in db.scalars(select(OrderRecord).order_by(desc(OrderRecord.created_at)).limit(6)).all()],
     "recent_audit":[{"admin_email":x.admin_email,"action":x.action,"entity_type":x.entity_type,"entity_id":x.entity_id,"created_at":x.created_at.isoformat()+"Z"} for x in db.scalars(select(AuditLog).order_by(desc(AuditLog.created_at)).limit(6)).all()],
     "operational_note":"Metrics represent this admin service database. Connect shared Vegz APIs for live production metrics."}
@@ -402,7 +402,7 @@ def create_order(payload:OrderIn,admin:AdminUser=Depends(require_admin),db:Sessi
     obj=OrderRecord(**payload.model_dump());db.add(obj);db.flush();_audit(db,admin,"create","order",obj.id,"Created order "+obj.public_code);db.commit();db.refresh(obj);return _order(obj)
 @app.patch("/api/orders/{order_id}")
 def patch_order(order_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
-    allowed_fields={"customer_name","customer_phone","shop_id","agent_id","address","total_amount","payment_status","source","external_ref"}
+    allowed_fields={"customer_name","customer_phone","shop_id","agent_id","address","total_amount","payment_status","status","source","external_ref"}
     if not payload or set(payload)-allowed_fields:
         raise HTTPException(status_code=422,detail="Provide only supported order fields; use the status endpoint for workflow transitions.")
     obj=db.get(OrderRecord,order_id)
@@ -422,6 +422,12 @@ def patch_order(order_id:int,payload:dict[str,Any],admin:AdminUser=Depends(requi
             raise HTTPException(status_code=422,detail="Order total is outside the allowed range.")
     if "payment_status" in payload and payload["payment_status"] not in {"pending","paid","failed","refunded"}:
         raise HTTPException(status_code=422,detail="Invalid payment status.")
+    if "status" in payload:
+        transitions={"placed":{"confirmed","cancelled"},"confirmed":{"preparing","cancelled"},"preparing":{"ready_for_pickup","cancelled"},"ready_for_pickup":{"assigned","cancelled"},"assigned":{"picked_up","cancelled"},"picked_up":{"out_for_delivery","cancelled"},"out_for_delivery":{"delivered","delivery_failed"},"delivery_failed":{"assigned","cancelled"},"delivered":{"refunded"},"cancelled":set(),"refunded":set()}
+        desired=str(payload["status"]).strip().lower()
+        if desired != obj.status and desired not in transitions.get(obj.status,set()):
+            raise HTTPException(status_code=409,detail=f"Cannot transition {obj.status} to {desired}.")
+        payload["status"]=desired
     for key,value in payload.items(): setattr(obj,key,value)
     obj.updated_at=datetime.utcnow()
     _audit(db,admin,"update","order",obj.id,"Updated fields="+",".join(payload.keys()))
