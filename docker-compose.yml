@@ -4,11 +4,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      APP_ENV: development
+      APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: sqlite:////data/vegz_admin.db
-      JWT_SECRET: ${JWT_SECRET:-replace-this-local-only-secret-before-use}
-      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
-      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-local-admin-password-change}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in your .env file}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?Set BOOTSTRAP_ADMIN_EMAIL in your .env file}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Set BOOTSTRAP_ADMIN_PASSWORD in your .env file}
       BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Platform Administrator}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8000,http://127.0.0.1:8000}
     volumes:
