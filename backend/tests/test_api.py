@@ -96,5 +96,45 @@ class AdminApiTests(unittest.TestCase):
         self.assertEqual(duplicate.status_code, 409)
 
 
+    def test_partner_approval_callback_failure_does_not_mark_admin_record_approved(self):
+        from unittest.mock import Mock, patch
+        from backend.app.main import ShopRecord, SessionLocal
+        created = client.post("/api/shops", headers=self.headers, json={
+            "name": "Callback Shop", "owner_name": "Test Owner", "phone": "+919988776655",
+            "city": "Hubli", "shop_type": "vegetable"
+        })
+        self.assertEqual(created.status_code, 201, created.text)
+        shop_id = created.json()["id"]
+        failed_response = Mock()
+        failed_response.raise_for_status.side_effect = __import__("httpx").HTTPStatusError(
+            "service unavailable", request=Mock(), response=Mock(status_code=503)
+        )
+        with patch("backend.app.main.SHOP_SERVICE_URL", "http://shop.test"), patch("backend.app.main.httpx.post", return_value=failed_response):
+            response = client.patch(f"/api/shops/{shop_id}", headers=self.headers, json={"status": "approved"})
+        self.assertEqual(response.status_code, 502, response.text)
+        with SessionLocal() as db:
+            record = db.get(ShopRecord, shop_id)
+            self.assertEqual(record.status, "pending")
+            self.assertFalse(record.is_open)
+            self.assertFalse(record.accepts_orders)
+
+    def test_partner_approval_callback_uses_shared_token_and_status(self):
+        from unittest.mock import Mock, patch
+        from backend.app.main import ShopRecord
+        created = client.post("/api/shops", headers=self.headers, json={
+            "name": "Callback Success Shop", "owner_name": "Test Owner", "phone": "+919988776656",
+            "city": "Dharwad", "shop_type": "vegetable"
+        })
+        self.assertEqual(created.status_code, 201, created.text)
+        shop_id = created.json()["id"]
+        with patch("backend.app.main.SHOP_SERVICE_URL", "http://shop.test"), patch("backend.app.main.httpx.post", return_value=Mock(raise_for_status=Mock())) as callback:
+            response = client.patch(f"/api/shops/{shop_id}", headers=self.headers, json={"status": "approved"})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["status"], "approved")
+        args, kwargs = callback.call_args
+        self.assertEqual(args[0], "http://shop.test/api/internal/admin-approval")
+        self.assertEqual(kwargs["json"], {"phone": "+919988776656", "status": "approved"})
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer test-partner-admin-token-that-is-long-enough")
+
 if __name__ == "__main__":
     unittest.main()
