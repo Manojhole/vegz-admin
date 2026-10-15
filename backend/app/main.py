@@ -298,13 +298,13 @@ def _audit(db: Session, admin: AdminUser, action: str, entity_type: str, entity_
 
 
 def _shop(o: ShopRecord):
-    return {"id":o.id,"name":o.name,"owner_name":o.owner_name,"phone":o.phone,"email":o.email,"address":o.address,"status":o.status,"is_open":o.is_open,"accepts_orders":o.accepts_orders,"commission_pct":float(o.commission_pct),"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
+    return {"id":o.id,"name":o.name,"owner_name":o.owner_name,"phone":o.phone,"email":o.email,"address":o.address,"city":o.city,"shop_type":o.shop_type,"status":o.status,"is_open":o.is_open,"accepts_orders":o.accepts_orders,"commission_pct":float(o.commission_pct),"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
 def _agent(o: AgentRecord):
-    return {"id":o.id,"full_name":o.full_name,"phone":o.phone,"email":o.email,"vehicle_type":o.vehicle_type,"vehicle_number":o.vehicle_number,"status":o.status,"is_online":o.is_online,"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
+    return {"id":o.id,"full_name":o.full_name,"phone":o.phone,"email":o.email,"vehicle_type":o.vehicle_type,"vehicle_number":o.vehicle_number,"city":o.city,"status":o.status,"is_online":o.is_online,"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
 def _product(o: ProductRecord):
     return {"id":o.id,"shop_id":o.shop_id,"name":o.name,"category":o.category,"price":float(o.price),"stock_qty":o.stock_qty,"status":o.status,"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
 def _order(o: OrderRecord):
-    return {"id":o.id,"public_code":o.public_code,"customer_name":o.customer_name,"customer_phone":o.customer_phone,"shop_id":o.shop_id,"agent_id":o.agent_id,"address":o.address,"total_amount":float(o.total_amount),"payment_status":o.payment_status,"status":o.status,"source":o.source,"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
+    return {"id":o.id,"public_code":o.public_code,"customer_name":o.customer_name,"customer_phone":o.customer_phone,"shop_id":o.shop_id,"agent_id":o.agent_id,"address":o.address,"city":o.city,"total_amount":float(o.total_amount),"payment_status":o.payment_status,"status":o.status,"source":o.source,"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
 def _customer(o: CustomerRecord):
     return {"id":o.id,"full_name":o.full_name,"phone":o.phone,"email":o.email,"status":o.status,"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z"}
 def _admin_user(o: AdminUser):
