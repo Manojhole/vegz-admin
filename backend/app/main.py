@@ -103,7 +103,7 @@ class OrderRecord(Base):
     agent_id: Mapped[int | None] = mapped_column(ForeignKey("managed_agents.id"), nullable=True, index=True)
     address: Mapped[str] = mapped_column(String(500), default="")
     city: Mapped[str] = mapped_column(String(100), default="Hubli", index=True)
-    total_amount: Mapped[Decimal = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     payment_status: Mapped[str] = mapped_column(String(24), default="pending")
     status: Mapped[str] = mapped_column(String(32), default="placed", index=True)
     source: Mapped[str] = mapped_column(String(40), default="admin_demo")
