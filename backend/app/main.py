@@ -20,6 +20,9 @@ APP_ENV = os.getenv("APP_ENV", "development").lower()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./vegz_admin.db")
 JWT_SECRET = os.getenv("JWT_SECRET", "local-dev-only-change-this-secret")
 TOKEN_TTL_MINUTES = int(os.getenv("ADMIN_TOKEN_TTL_MINUTES", "60"))
+PARTNER_ADMIN_TOKEN = os.getenv("PARTNER_ADMIN_TOKEN", "vegz-local-partner-token-change-before-production")
+SHOP_SERVICE_URL = os.getenv("SHOP_SERVICE_URL", "http://host.docker.internal:8002" if APP_ENV == "development" else "").rstrip("/")
+AGENT_SERVICE_URL = os.getenv("AGENT_SERVICE_URL", "http://host.docker.internal:8001" if APP_ENV == "development" else "").rstrip("/")
 if APP_ENV == "production" and (len(JWT_SECRET) < 32 or JWT_SECRET == "local-dev-only-change-this-secret"):
     raise RuntimeError("Configure a unique JWT_SECRET of at least 32 characters for production.")
 engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}
@@ -320,7 +323,7 @@ def _admin_user(o: AdminUser):
 
 
 def _require_partner_token(authorization: str | None):
-    expected = os.getenv("PARTNER_ADMIN_TOKEN", "")
+    expected = PARTNER_ADMIN_TOKEN
     supplied = authorization.split(" ", 1)[1].strip() if authorization and authorization.lower().startswith("bearer ") else ""
     if len(expected) < 32 or not secrets.compare_digest(supplied, expected):
         raise HTTPException(status_code=401, detail="Partner registration authentication failed.")
@@ -365,8 +368,8 @@ def partner_agent_request(payload: dict[str, Any], authorization: str | None = H
 
 
 def _sync_partner_approval(kind: str, phone: str, status_value: str):
-    base = os.getenv("SHOP_SERVICE_URL" if kind == "shop" else "AGENT_SERVICE_URL", "").rstrip("/")
-    token = os.getenv("PARTNER_ADMIN_TOKEN", "")
+    base = SHOP_SERVICE_URL if kind == "shop" else AGENT_SERVICE_URL
+    token = PARTNER_ADMIN_TOKEN
     if not base:
         if APP_ENV == "production":
             raise HTTPException(status_code=503, detail=f"{kind.title()} service URL is not configured; approval was not saved.")
