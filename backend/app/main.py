@@ -201,9 +201,8 @@ def bootstrap_admin():
         if existing is None:
             db.add(AdminUser(email=email, password_hash=_hash_password(password), full_name=os.getenv("BOOTSTRAP_ADMIN_NAME", "Platform Administrator"), role="super_admin", is_active=True))
             db.commit()
-        else:
-            # The configured bootstrap credentials are the source of truth for local recovery.
-            # This also repairs an existing local volume when its password differs from .env.
+        elif APP_ENV == "development":
+            # Recover a stale local SQLite volume during development only.
             existing.password_hash = _hash_password(password)
             existing.full_name = os.getenv("BOOTSTRAP_ADMIN_NAME", existing.full_name or "Platform Administrator")
             existing.is_active = True
