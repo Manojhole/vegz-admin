@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import jwt
+import httpx
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +20,11 @@ APP_ENV = os.getenv("APP_ENV", "development").lower()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./vegz_admin.db")
 JWT_SECRET = os.getenv("JWT_SECRET", "local-dev-only-change-this-secret")
 TOKEN_TTL_MINUTES = int(os.getenv("ADMIN_TOKEN_TTL_MINUTES", "60"))
+PARTNER_ADMIN_TOKEN = os.getenv("PARTNER_ADMIN_TOKEN", "vegz-local-partner-token-change-before-production")
+SHOP_SERVICE_URL = os.getenv("SHOP_SERVICE_URL", "http://host.docker.internal:8002" if APP_ENV == "development" else "").rstrip("/")
+AGENT_SERVICE_URL = os.getenv("AGENT_SERVICE_URL", "http://host.docker.internal:8001" if APP_ENV == "development" else "").rstrip("/")
+if APP_ENV == "production" and (len(PARTNER_ADMIN_TOKEN) < 32 or "replace-with" in PARTNER_ADMIN_TOKEN.lower() or "change-before-production" in PARTNER_ADMIN_TOKEN or not SHOP_SERVICE_URL or not AGENT_SERVICE_URL):
+    raise RuntimeError("Configure shop/agent service URLs and a unique PARTNER_ADMIN_TOKEN before production.")
 if APP_ENV == "production" and (len(JWT_SECRET) < 32 or JWT_SECRET == "local-dev-only-change-this-secret"):
     raise RuntimeError("Configure a unique JWT_SECRET of at least 32 characters for production.")
 engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}
@@ -197,6 +203,12 @@ def bootstrap_admin():
         if existing is None:
             db.add(AdminUser(email=email, password_hash=_hash_password(password), full_name=os.getenv("BOOTSTRAP_ADMIN_NAME", "Platform Administrator"), role="super_admin", is_active=True))
             db.commit()
+        elif APP_ENV == "development":
+            # Recover a stale local SQLite volume during development only.
+            existing.password_hash = _hash_password(password)
+            existing.full_name = os.getenv("BOOTSTRAP_ADMIN_NAME", existing.full_name or "Platform Administrator")
+            existing.is_active = True
+            db.commit()
 
 
 def ensure_default_settings():
@@ -311,6 +323,65 @@ def _admin_user(o: AdminUser):
     return {"id":o.id,"email":o.email,"full_name":o.full_name,"role":o.role,"is_active":o.is_active,"last_login_at":o.last_login_at.isoformat()+"Z" if o.last_login_at else None,"created_at":o.created_at.isoformat()+"Z"}
 
 
+def _require_partner_token(authorization: str | None):
+    expected = PARTNER_ADMIN_TOKEN
+    supplied = authorization.split(" ", 1)[1].strip() if authorization and authorization.lower().startswith("bearer ") else ""
+    if len(expected) < 32 or not secrets.compare_digest(supplied, expected):
+        raise HTTPException(status_code=401, detail="Partner registration authentication failed.")
+
+
+@app.post("/api/internal/partner-requests/shop", status_code=201)
+def partner_shop_request(payload: dict[str, Any], authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    _require_partner_token(authorization)
+    phone = str(payload.get("phone", "")).strip()
+    if len(phone) < 8: raise HTTPException(status_code=422, detail="Valid owner phone is required.")
+    city = " ".join(str(payload.get("city", "Hubli")).split()).title()
+    shop_type = str(payload.get("shop_type", "vegetable"))
+    if shop_type not in {"vegetable", "grocery"}: raise HTTPException(status_code=422, detail="Invalid shop type.")
+    obj = db.scalar(select(ShopRecord).where(ShopRecord.phone == phone))
+    if obj is None:
+        duplicate = db.scalar(select(ShopRecord).where(func.lower(ShopRecord.city) == city.casefold(), ShopRecord.shop_type == shop_type, ShopRecord.status.in_(["pending", "approved"])))
+        if duplicate is not None and duplicate.phone != phone:
+            raise HTTPException(status_code=409, detail=f"A {shop_type} shop is already registered or pending in {city}.")
+        obj = ShopRecord(name=str(payload.get("name") or "My Vegz Shop"), owner_name=str(payload.get("owner_name") or ""), phone=phone, city=city, shop_type=shop_type, address=str(payload.get("address") or ""), status="pending", is_open=False, accepts_orders=False, external_ref=str(payload.get("external_ref") or ""))
+        db.add(obj)
+    else:
+        obj.name = str(payload.get("name") or obj.name); obj.city = city; obj.shop_type = shop_type
+        obj.address = str(payload.get("address") or obj.address); obj.external_ref = str(payload.get("external_ref") or obj.external_ref)
+    db.commit(); db.refresh(obj)
+    return _shop(obj)
+
+
+@app.post("/api/internal/partner-requests/agent", status_code=201)
+def partner_agent_request(payload: dict[str, Any], authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    _require_partner_token(authorization)
+    phone = str(payload.get("phone", "")).strip()
+    if len(phone) < 8: raise HTTPException(status_code=422, detail="Valid agent phone is required.")
+    obj = db.scalar(select(AgentRecord).where(AgentRecord.phone == phone))
+    if obj is None:
+        obj = AgentRecord(full_name=str(payload.get("full_name") or "Delivery Partner"), phone=phone, city=" ".join(str(payload.get("city", "Hubli")).split()).title(), vehicle_type=str(payload.get("vehicle_type") or "Bike"), vehicle_number=str(payload.get("vehicle_number") or ""), status="pending", is_online=False, external_ref=str(payload.get("external_ref") or ""))
+        db.add(obj)
+    else:
+        obj.full_name = str(payload.get("full_name") or obj.full_name); obj.city = " ".join(str(payload.get("city", obj.city)).split()).title()
+        obj.vehicle_type = str(payload.get("vehicle_type") or obj.vehicle_type); obj.external_ref = str(payload.get("external_ref") or obj.external_ref)
+    db.commit(); db.refresh(obj)
+    return _agent(obj)
+
+
+def _sync_partner_approval(kind: str, phone: str, status_value: str):
+    base = SHOP_SERVICE_URL if kind == "shop" else AGENT_SERVICE_URL
+    token = PARTNER_ADMIN_TOKEN
+    if not base:
+        if APP_ENV == "production":
+            raise HTTPException(status_code=503, detail=f"{kind.title()} service URL is not configured; approval was not saved.")
+        return
+    try:
+        response = httpx.post(base + "/api/internal/admin-approval", headers={"Authorization": "Bearer " + token}, json={"phone": phone, "status": status_value}, timeout=6.0)
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Could not sync {kind} approval to its service; approval was not saved.") from exc
+
+
 @app.get("/api/health")
 def health(): return {"status":"ok","service":"vegz-admin-api"}
 @app.post("/api/auth/login")
@@ -367,6 +438,8 @@ def patch_shop(shop_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require
             if pct<0 or pct>100: raise ValueError()
             payload["commission_pct"]=pct
         except Exception: raise HTTPException(status_code=422,detail="Commission must be between 0 and 100.")
+    if "status" in payload and payload["status"] != obj.status:
+        _sync_partner_approval("shop", obj.phone, payload["status"])
     for key,value in payload.items():setattr(obj,key,value)
     if obj.status!="approved":obj.is_open=False;obj.accepts_orders=False
     obj.updated_at=datetime.utcnow();_audit(db,admin,"update","shop",obj.id,"Updated fields="+",".join(payload.keys()));db.commit();db.refresh(obj);return _shop(obj)
@@ -394,6 +467,8 @@ def patch_agent(agent_id:int,payload:dict[str,Any],admin:AdminUser=Depends(requi
     if obj is None:raise HTTPException(status_code=404,detail="Agent not found.")
     if "status" in payload and payload["status"] not in {"pending","approved","suspended","rejected"}:
         raise HTTPException(status_code=422,detail="Invalid agent status.")
+    if "status" in payload and payload["status"] != obj.status:
+        _sync_partner_approval("agent", obj.phone, payload["status"])
     for key,value in payload.items():setattr(obj,key,value)
     if obj.status!="approved":obj.is_online=False
     obj.updated_at=datetime.utcnow();_audit(db,admin,"update","agent",obj.id,"Updated fields="+",".join(payload.keys()));db.commit();db.refresh(obj);return _agent(obj)
