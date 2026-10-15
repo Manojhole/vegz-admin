@@ -39,7 +39,7 @@ class AdminApiTests(unittest.TestCase):
 
     def test_shop_approval_and_suspension(self):
         created = client.post("/api/shops", headers=self.headers, json={
-            "name": "Test Vegetables", "owner_name": "Test Owner", "phone": "+919876543210"
+            "name": "Test Vegetables", "owner_name": "Test Owner", "phone": "+919876543210", "city": "Dharwad", "shop_type": "vegetable"
         })
         self.assertEqual(created.status_code, 201, created.text)
         shop = created.json()
