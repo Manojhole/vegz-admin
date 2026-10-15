@@ -30,7 +30,7 @@ class AdminApiTests(unittest.TestCase):
 
     def test_partner_registration_requests_are_queued_for_review(self):
         headers = {"Authorization": "Bearer test-partner-admin-token-that-is-long-enough"}
-        shop = client.post("/api/internal/partner-requests/shop", headers=headers, json={"phone": "+919911112222", "city": "Hubli", "shop_type": "vegetable", "name": "Pending Shop", "external_ref": "1"})
+        shop = client.post("/api/internal/partner-requests/shop", headers=headers, json={"phone": "+919911112222", "city": "Gadag", "shop_type": "vegetable", "name": "Pending Shop", "external_ref": "1"})
         self.assertEqual(shop.status_code, 201, shop.text)
         self.assertEqual(shop.json()["status"], "pending")
         agent = client.post("/api/internal/partner-requests/agent", headers=headers, json={"phone": "+919911113333", "city": "Dharwad", "full_name": "Pending Agent", "external_ref": "2"})
