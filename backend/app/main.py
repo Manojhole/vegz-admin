@@ -346,12 +346,16 @@ def list_shops(status_filter:str|None=None,q:str|None=Query(default=None,max_len
 @app.post("/api/shops",status_code=201)
 def create_shop(payload:ShopIn,admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
     if payload.status not in {"pending","approved","suspended","rejected"}:raise HTTPException(status_code=422,detail="Invalid shop status.")
-    obj=ShopRecord(**payload.model_dump())
+    city=" ".join(payload.city.split()).title()
+    duplicate=db.scalar(select(ShopRecord.id).where(func.lower(ShopRecord.city)==city.casefold(),ShopRecord.shop_type==payload.shop_type))
+    if duplicate is not None:raise HTTPException(status_code=409,detail=f"A {payload.shop_type} shop is already registered for {city}.")
+    values=payload.model_dump();values["city"]=city
+    obj=ShopRecord(**values)
     if obj.status!="approved":obj.is_open=False;obj.accepts_orders=False
     db.add(obj);db.flush();_audit(db,admin,"create","shop",obj.id,"Created shop "+obj.name);db.commit();db.refresh(obj);return _shop(obj)
 @app.patch("/api/shops/{shop_id}")
 def patch_shop(shop_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
-    allowed={"name","owner_name","phone","email","address","status","is_open","accepts_orders","commission_pct","external_ref"}
+    allowed={"name","owner_name","phone","email","address","city","shop_type","status","is_open","accepts_orders","commission_pct","external_ref"}
     if not payload or set(payload)-allowed:raise HTTPException(status_code=422,detail="Provide only supported shop fields.")
     obj=db.get(ShopRecord,shop_id)
     if obj is None:raise HTTPException(status_code=404,detail="Shop not found.")
@@ -378,12 +382,13 @@ def list_agents(status_filter:str|None=None,q:str|None=Query(default=None,max_le
 @app.post("/api/agents",status_code=201)
 def create_agent(payload:AgentIn,admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
     if payload.status not in {"pending","approved","suspended","rejected"}:raise HTTPException(status_code=422,detail="Invalid agent status.")
-    obj=AgentRecord(**payload.model_dump())
+    values=payload.model_dump();values["city"]=" ".join(payload.city.split()).title()
+    obj=AgentRecord(**values)
     if obj.status!="approved":obj.is_online=False
     db.add(obj);db.flush();_audit(db,admin,"create","agent",obj.id,"Created agent "+obj.full_name);db.commit();db.refresh(obj);return _agent(obj)
 @app.patch("/api/agents/{agent_id}")
 def patch_agent(agent_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
-    allowed={"full_name","phone","email","vehicle_type","vehicle_number","status","is_online","external_ref"}
+    allowed={"full_name","phone","email","vehicle_type","vehicle_number","city","status","is_online","external_ref"}
     if not payload or set(payload)-allowed:raise HTTPException(status_code=422,detail="Provide only supported agent fields.")
     obj=db.get(AgentRecord,agent_id)
     if obj is None:raise HTTPException(status_code=404,detail="Agent not found.")
