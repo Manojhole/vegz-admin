@@ -52,6 +52,8 @@ class ShopRecord(Base):
     phone: Mapped[str] = mapped_column(String(24), default="")
     email: Mapped[str] = mapped_column(String(180), default="")
     address: Mapped[str] = mapped_column(String(400), default="")
+    city: Mapped[str] = mapped_column(String(100), default="Hubli", index=True)
+    shop_type: Mapped[str] = mapped_column(String(20), default="vegetable", index=True)
     status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
     is_open: Mapped[bool] = mapped_column(Boolean, default=False)
     accepts_orders: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -69,6 +71,7 @@ class AgentRecord(Base):
     email: Mapped[str] = mapped_column(String(180), default="")
     vehicle_type: Mapped[str] = mapped_column(String(30), default="Bike")
     vehicle_number: Mapped[str] = mapped_column(String(24), default="")
+    city: Mapped[str] = mapped_column(String(100), default="Hubli", index=True)
     status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
     is_online: Mapped[bool] = mapped_column(Boolean, default=False)
     external_ref: Mapped[str] = mapped_column(String(120), default="")
@@ -99,7 +102,8 @@ class OrderRecord(Base):
     shop_id: Mapped[int | None] = mapped_column(ForeignKey("managed_shops.id"), nullable=True, index=True)
     agent_id: Mapped[int | None] = mapped_column(ForeignKey("managed_agents.id"), nullable=True, index=True)
     address: Mapped[str] = mapped_column(String(500), default="")
-    total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    city: Mapped[str] = mapped_column(String(100), default="Hubli", index=True)
+    total_amount: Mapped[Decimal = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     payment_status: Mapped[str] = mapped_column(String(24), default="pending")
     status: Mapped[str] = mapped_column(String(32), default="placed", index=True)
     source: Mapped[str] = mapped_column(String(40), default="admin_demo")
@@ -205,6 +209,8 @@ class ShopIn(BaseModel):
     phone: str = Field(default="", max_length=24)
     email: str = Field(default="", max_length=180)
     address: str = Field(default="", max_length=400)
+    city: str = Field(default="Hubli", min_length=2, max_length=100)
+    shop_type: str = Field(default="vegetable", pattern=r"^(vegetable|grocery)$")
     status: str = "pending"
     is_open: bool = False
     accepts_orders: bool = False
@@ -216,6 +222,7 @@ class AgentIn(BaseModel):
     email: str = Field(default="", max_length=180)
     vehicle_type: str = Field(default="Bike", max_length=30)
     vehicle_number: str = Field(default="", max_length=24)
+    city: str = Field(default="Hubli", min_length=2, max_length=100)
     status: str = "pending"
     is_online: bool = False
     external_ref: str = Field(default="", max_length=120)
@@ -234,6 +241,7 @@ class OrderIn(BaseModel):
     shop_id: int | None = None
     agent_id: int | None = None
     address: str = Field(default="", max_length=500)
+    city: str = Field(default="Hubli", min_length=2, max_length=100)
     total_amount: Decimal = Field(default=Decimal("0.00"), ge=0, le=Decimal("10000000"))
     payment_status: str = "pending"
     status: str = "placed"
