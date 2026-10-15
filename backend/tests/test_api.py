@@ -53,7 +53,7 @@ class AdminApiTests(unittest.TestCase):
 
     def test_shop_approval_and_suspension(self):
         created = client.post("/api/shops", headers=self.headers, json={
-            "name": "Test Vegetables", "owner_name": "Test Owner", "phone": "+919876543210", "city": "Dharwad", "shop_type": "vegetable"
+            "name": "Test Vegetables", "owner_name": "Test Owner", "phone": "+919876543210", "city": "Callback City Two", "shop_type": "vegetable"
         })
         self.assertEqual(created.status_code, 201, created.text)
         shop = created.json()
@@ -101,7 +101,7 @@ class AdminApiTests(unittest.TestCase):
         from backend.app.main import ShopRecord, SessionLocal
         created = client.post("/api/shops", headers=self.headers, json={
             "name": "Callback Shop", "owner_name": "Test Owner", "phone": "+919988776655",
-            "city": "Hubli", "shop_type": "vegetable"
+            "city": "Callback City One", "shop_type": "vegetable"
         })
         self.assertEqual(created.status_code, 201, created.text)
         shop_id = created.json()["id"]
