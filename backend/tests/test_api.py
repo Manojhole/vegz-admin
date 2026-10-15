@@ -10,6 +10,9 @@ os.environ["JWT_SECRET"] = "test-admin-secret-with-at-least-thirty-two-chars"
 os.environ["BOOTSTRAP_ADMIN_EMAIL"] = "root@example.com"
 os.environ["BOOTSTRAP_ADMIN_PASSWORD"] = "test-admin-password-long-123"
 os.environ["BOOTSTRAP_ADMIN_NAME"] = "Test Root"
+os.environ["PARTNER_ADMIN_TOKEN"] = "test-partner-admin-token-that-is-long-enough"
+os.environ["SHOP_SERVICE_URL"] = ""
+os.environ["AGENT_SERVICE_URL"] = ""
 
 from fastapi.testclient import TestClient
 from backend.app.main import app
@@ -24,6 +27,17 @@ class AdminApiTests(unittest.TestCase):
         if login.status_code != 200:
             raise RuntimeError(f"Test administrator login failed: {login.text}")
         cls.headers = {"Authorization": "Bearer " + login.json()["access_token"]}
+
+    def test_partner_registration_requests_are_queued_for_review(self):
+        headers = {"Authorization": "Bearer test-partner-admin-token-that-is-long-enough"}
+        shop = client.post("/api/internal/partner-requests/shop", headers=headers, json={"phone": "+919911112222", "city": "Hubli", "shop_type": "vegetable", "name": "Pending Shop", "external_ref": "1"})
+        self.assertEqual(shop.status_code, 201, shop.text)
+        self.assertEqual(shop.json()["status"], "pending")
+        agent = client.post("/api/internal/partner-requests/agent", headers=headers, json={"phone": "+919911113333", "city": "Dharwad", "full_name": "Pending Agent", "external_ref": "2"})
+        self.assertEqual(agent.status_code, 201, agent.text)
+        self.assertEqual(agent.json()["status"], "pending")
+        denied = client.post("/api/internal/partner-requests/agent", json={"phone": "+919911114444", "city": "Hubli"})
+        self.assertEqual(denied.status_code, 401)
 
     def test_auth_required(self):
         response = client.get("/api/dashboard")
