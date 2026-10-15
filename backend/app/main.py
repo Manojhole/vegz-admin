@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, create_engine, select, desc, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, create_engine, select, desc, func, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 load_dotenv()
@@ -146,6 +146,17 @@ class AuditLog(Base):
 
 
 Base.metadata.create_all(bind=engine)
+# Additive migration for existing installations.
+with engine.begin() as connection:
+    for table, columns in {
+        "managed_shops": {"city": "VARCHAR(100) NOT NULL DEFAULT 'Hubli'", "shop_type": "VARCHAR(20) NOT NULL DEFAULT 'vegetable'"},
+        "managed_agents": {"city": "VARCHAR(100) NOT NULL DEFAULT 'Hubli'"},
+        "managed_orders": {"city": "VARCHAR(100) NOT NULL DEFAULT 'Hubli'"},
+    }.items():
+        existing = {column["name"] for column in inspect(engine).get_columns(table)}
+        for column, sql_type in columns.items():
+            if column not in existing:
+                connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
 app = FastAPI(title="Vegz Admin API", version="1.0.0", description="Central operations console API for platform administrators.")
 app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").split(",") if x.strip()], allow_credentials=True, allow_methods=["GET","POST","PATCH","PUT","DELETE","OPTIONS"], allow_headers=["Authorization","Content-Type"])
 
@@ -435,7 +446,7 @@ def create_order(payload:OrderIn,admin:AdminUser=Depends(require_admin),db:Sessi
     obj=OrderRecord(**payload.model_dump());db.add(obj);db.flush();_audit(db,admin,"create","order",obj.id,"Created order "+obj.public_code);db.commit();db.refresh(obj);return _order(obj)
 @app.patch("/api/orders/{order_id}")
 def patch_order(order_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
-    allowed_fields={"customer_name","customer_phone","shop_id","agent_id","address","total_amount","payment_status","status","source","external_ref"}
+    allowed_fields={"customer_name","customer_phone","shop_id","agent_id","address","city","total_amount","payment_status","status","source","external_ref"}
     if not payload or set(payload)-allowed_fields:
         raise HTTPException(status_code=422,detail="Provide only supported order fields; use the status endpoint for workflow transitions.")
     obj=db.get(OrderRecord,order_id)
@@ -481,6 +492,8 @@ def assign_order(order_id:int,payload:AssignmentIn,admin:AdminUser=Depends(requi
     if obj is None:raise HTTPException(status_code=404,detail="Order not found.")
     if agent is None or agent.status!="approved":raise HTTPException(status_code=422,detail="Agent must be approved before receiving orders.")
     if not agent.is_online:raise HTTPException(status_code=409,detail="Only an online agent can receive a delivery assignment.")
+    if "city" in obj.__dict__ and "city" in agent.__dict__ and " ".join(agent.city.split()).casefold() != " ".join(obj.city.split()).casefold():
+        raise HTTPException(status_code=409,detail="Agent and order must belong to the same city.")
     if obj.status not in {"ready_for_pickup","delivery_failed","assigned"}:raise HTTPException(status_code=409,detail="Order must be ready for pickup or awaiting reassignment.")
     old=obj.agent_id;obj.agent_id=agent.id;obj.status="assigned";obj.updated_at=datetime.utcnow();_audit(db,admin,"assign","order",obj.id,f"Agent {old} -> {agent.id}");db.commit();db.refresh(obj);return _order(obj)
 
