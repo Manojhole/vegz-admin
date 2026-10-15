@@ -23,6 +23,8 @@ TOKEN_TTL_MINUTES = int(os.getenv("ADMIN_TOKEN_TTL_MINUTES", "60"))
 PARTNER_ADMIN_TOKEN = os.getenv("PARTNER_ADMIN_TOKEN", "vegz-local-partner-token-change-before-production")
 SHOP_SERVICE_URL = os.getenv("SHOP_SERVICE_URL", "http://host.docker.internal:8002" if APP_ENV == "development" else "").rstrip("/")
 AGENT_SERVICE_URL = os.getenv("AGENT_SERVICE_URL", "http://host.docker.internal:8001" if APP_ENV == "development" else "").rstrip("/")
+if APP_ENV == "production" and (len(PARTNER_ADMIN_TOKEN) < 32 or "replace-with" in PARTNER_ADMIN_TOKEN.lower() or "change-before-production" in PARTNER_ADMIN_TOKEN or not SHOP_SERVICE_URL or not AGENT_SERVICE_URL):
+    raise RuntimeError("Configure shop/agent service URLs and a unique PARTNER_ADMIN_TOKEN before production.")
 if APP_ENV == "production" and (len(JWT_SECRET) < 32 or JWT_SECRET == "local-dev-only-change-this-secret"):
     raise RuntimeError("Configure a unique JWT_SECRET of at least 32 characters for production.")
 engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}
