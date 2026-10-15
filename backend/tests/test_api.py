@@ -39,7 +39,7 @@ class AdminApiTests(unittest.TestCase):
 
     def test_shop_approval_and_suspension(self):
         created = client.post("/api/shops", headers=self.headers, json={
-            "name": "Test Vegetables", "owner_name": "Test Owner", "phone": "+919876543210"
+            "name": "Test Vegetables", "owner_name": "Test Owner", "phone": "+919876543210", "city": "Dharwad", "shop_type": "vegetable"
         })
         self.assertEqual(created.status_code, 201, created.text)
         shop = created.json()
@@ -54,7 +54,7 @@ class AdminApiTests(unittest.TestCase):
         self.assertFalse(suspended.json()["accepts_orders"])
 
     def test_order_creation_assignment_and_status_transition(self):
-        shop = client.post("/api/shops", headers=self.headers, json={"name": "Order Shop", "status": "approved"}).json()
+        shop = client.post("/api/shops", headers=self.headers, json={"name": "Order Shop", "status": "approved", "shop_type": "grocery"}).json()
         agent = client.post("/api/agents", headers=self.headers, json={"full_name": "Courier Test", "status": "approved", "is_online": True}).json()
         order = client.post("/api/orders", headers=self.headers, json={
             "public_code": "VGZ-TEST-ORDER-1", "shop_id": shop["id"], "total_amount": 120, "status": "ready_for_pickup"

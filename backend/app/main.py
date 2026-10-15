@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, create_engine, select, desc, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, create_engine, select, desc, func, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 load_dotenv()
@@ -52,6 +52,8 @@ class ShopRecord(Base):
     phone: Mapped[str] = mapped_column(String(24), default="")
     email: Mapped[str] = mapped_column(String(180), default="")
     address: Mapped[str] = mapped_column(String(400), default="")
+    city: Mapped[str] = mapped_column(String(100), default="Hubli", index=True)
+    shop_type: Mapped[str] = mapped_column(String(20), default="vegetable", index=True)
     status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
     is_open: Mapped[bool] = mapped_column(Boolean, default=False)
     accepts_orders: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -69,6 +71,7 @@ class AgentRecord(Base):
     email: Mapped[str] = mapped_column(String(180), default="")
     vehicle_type: Mapped[str] = mapped_column(String(30), default="Bike")
     vehicle_number: Mapped[str] = mapped_column(String(24), default="")
+    city: Mapped[str] = mapped_column(String(100), default="Hubli", index=True)
     status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
     is_online: Mapped[bool] = mapped_column(Boolean, default=False)
     external_ref: Mapped[str] = mapped_column(String(120), default="")
@@ -99,6 +102,7 @@ class OrderRecord(Base):
     shop_id: Mapped[int | None] = mapped_column(ForeignKey("managed_shops.id"), nullable=True, index=True)
     agent_id: Mapped[int | None] = mapped_column(ForeignKey("managed_agents.id"), nullable=True, index=True)
     address: Mapped[str] = mapped_column(String(500), default="")
+    city: Mapped[str] = mapped_column(String(100), default="Hubli", index=True)
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     payment_status: Mapped[str] = mapped_column(String(24), default="pending")
     status: Mapped[str] = mapped_column(String(32), default="placed", index=True)
@@ -142,6 +146,17 @@ class AuditLog(Base):
 
 
 Base.metadata.create_all(bind=engine)
+# Additive migration for existing installations.
+with engine.begin() as connection:
+    for table, columns in {
+        "managed_shops": {"city": "VARCHAR(100) NOT NULL DEFAULT 'Hubli'", "shop_type": "VARCHAR(20) NOT NULL DEFAULT 'vegetable'"},
+        "managed_agents": {"city": "VARCHAR(100) NOT NULL DEFAULT 'Hubli'"},
+        "managed_orders": {"city": "VARCHAR(100) NOT NULL DEFAULT 'Hubli'"},
+    }.items():
+        existing = {column["name"] for column in inspect(engine).get_columns(table)}
+        for column, sql_type in columns.items():
+            if column not in existing:
+                connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
 app = FastAPI(title="Vegz Admin API", version="1.0.0", description="Central operations console API for platform administrators.")
 app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").split(",") if x.strip()], allow_credentials=True, allow_methods=["GET","POST","PATCH","PUT","DELETE","OPTIONS"], allow_headers=["Authorization","Content-Type"])
 
@@ -205,6 +220,8 @@ class ShopIn(BaseModel):
     phone: str = Field(default="", max_length=24)
     email: str = Field(default="", max_length=180)
     address: str = Field(default="", max_length=400)
+    city: str = Field(default="Hubli", min_length=2, max_length=100)
+    shop_type: str = Field(default="vegetable", pattern=r"^(vegetable|grocery)$")
     status: str = "pending"
     is_open: bool = False
     accepts_orders: bool = False
@@ -216,6 +233,7 @@ class AgentIn(BaseModel):
     email: str = Field(default="", max_length=180)
     vehicle_type: str = Field(default="Bike", max_length=30)
     vehicle_number: str = Field(default="", max_length=24)
+    city: str = Field(default="Hubli", min_length=2, max_length=100)
     status: str = "pending"
     is_online: bool = False
     external_ref: str = Field(default="", max_length=120)
@@ -234,6 +252,7 @@ class OrderIn(BaseModel):
     shop_id: int | None = None
     agent_id: int | None = None
     address: str = Field(default="", max_length=500)
+    city: str = Field(default="Hubli", min_length=2, max_length=100)
     total_amount: Decimal = Field(default=Decimal("0.00"), ge=0, le=Decimal("10000000"))
     payment_status: str = "pending"
     status: str = "placed"
@@ -279,13 +298,13 @@ def _audit(db: Session, admin: AdminUser, action: str, entity_type: str, entity_
 
 
 def _shop(o: ShopRecord):
-    return {"id":o.id,"name":o.name,"owner_name":o.owner_name,"phone":o.phone,"email":o.email,"address":o.address,"status":o.status,"is_open":o.is_open,"accepts_orders":o.accepts_orders,"commission_pct":float(o.commission_pct),"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
+    return {"id":o.id,"name":o.name,"owner_name":o.owner_name,"phone":o.phone,"email":o.email,"address":o.address,"city":o.city,"shop_type":o.shop_type,"status":o.status,"is_open":o.is_open,"accepts_orders":o.accepts_orders,"commission_pct":float(o.commission_pct),"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
 def _agent(o: AgentRecord):
-    return {"id":o.id,"full_name":o.full_name,"phone":o.phone,"email":o.email,"vehicle_type":o.vehicle_type,"vehicle_number":o.vehicle_number,"status":o.status,"is_online":o.is_online,"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
+    return {"id":o.id,"full_name":o.full_name,"phone":o.phone,"email":o.email,"vehicle_type":o.vehicle_type,"vehicle_number":o.vehicle_number,"city":o.city,"status":o.status,"is_online":o.is_online,"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
 def _product(o: ProductRecord):
     return {"id":o.id,"shop_id":o.shop_id,"name":o.name,"category":o.category,"price":float(o.price),"stock_qty":o.stock_qty,"status":o.status,"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
 def _order(o: OrderRecord):
-    return {"id":o.id,"public_code":o.public_code,"customer_name":o.customer_name,"customer_phone":o.customer_phone,"shop_id":o.shop_id,"agent_id":o.agent_id,"address":o.address,"total_amount":float(o.total_amount),"payment_status":o.payment_status,"status":o.status,"source":o.source,"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
+    return {"id":o.id,"public_code":o.public_code,"customer_name":o.customer_name,"customer_phone":o.customer_phone,"shop_id":o.shop_id,"agent_id":o.agent_id,"address":o.address,"city":o.city,"total_amount":float(o.total_amount),"payment_status":o.payment_status,"status":o.status,"source":o.source,"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z","updated_at":o.updated_at.isoformat()+"Z"}
 def _customer(o: CustomerRecord):
     return {"id":o.id,"full_name":o.full_name,"phone":o.phone,"email":o.email,"status":o.status,"external_ref":o.external_ref,"created_at":o.created_at.isoformat()+"Z"}
 def _admin_user(o: AdminUser):
@@ -327,12 +346,16 @@ def list_shops(status_filter:str|None=None,q:str|None=Query(default=None,max_len
 @app.post("/api/shops",status_code=201)
 def create_shop(payload:ShopIn,admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
     if payload.status not in {"pending","approved","suspended","rejected"}:raise HTTPException(status_code=422,detail="Invalid shop status.")
-    obj=ShopRecord(**payload.model_dump())
+    city=" ".join(payload.city.split()).title()
+    duplicate=db.scalar(select(ShopRecord.id).where(func.lower(ShopRecord.city)==city.casefold(),ShopRecord.shop_type==payload.shop_type))
+    if duplicate is not None:raise HTTPException(status_code=409,detail=f"A {payload.shop_type} shop is already registered for {city}.")
+    values=payload.model_dump();values["city"]=city
+    obj=ShopRecord(**values)
     if obj.status!="approved":obj.is_open=False;obj.accepts_orders=False
     db.add(obj);db.flush();_audit(db,admin,"create","shop",obj.id,"Created shop "+obj.name);db.commit();db.refresh(obj);return _shop(obj)
 @app.patch("/api/shops/{shop_id}")
 def patch_shop(shop_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
-    allowed={"name","owner_name","phone","email","address","status","is_open","accepts_orders","commission_pct","external_ref"}
+    allowed={"name","owner_name","phone","email","address","city","shop_type","status","is_open","accepts_orders","commission_pct","external_ref"}
     if not payload or set(payload)-allowed:raise HTTPException(status_code=422,detail="Provide only supported shop fields.")
     obj=db.get(ShopRecord,shop_id)
     if obj is None:raise HTTPException(status_code=404,detail="Shop not found.")
@@ -359,12 +382,13 @@ def list_agents(status_filter:str|None=None,q:str|None=Query(default=None,max_le
 @app.post("/api/agents",status_code=201)
 def create_agent(payload:AgentIn,admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
     if payload.status not in {"pending","approved","suspended","rejected"}:raise HTTPException(status_code=422,detail="Invalid agent status.")
-    obj=AgentRecord(**payload.model_dump())
+    values=payload.model_dump();values["city"]=" ".join(payload.city.split()).title()
+    obj=AgentRecord(**values)
     if obj.status!="approved":obj.is_online=False
     db.add(obj);db.flush();_audit(db,admin,"create","agent",obj.id,"Created agent "+obj.full_name);db.commit();db.refresh(obj);return _agent(obj)
 @app.patch("/api/agents/{agent_id}")
 def patch_agent(agent_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
-    allowed={"full_name","phone","email","vehicle_type","vehicle_number","status","is_online","external_ref"}
+    allowed={"full_name","phone","email","vehicle_type","vehicle_number","city","status","is_online","external_ref"}
     if not payload or set(payload)-allowed:raise HTTPException(status_code=422,detail="Provide only supported agent fields.")
     obj=db.get(AgentRecord,agent_id)
     if obj is None:raise HTTPException(status_code=404,detail="Agent not found.")
@@ -427,7 +451,7 @@ def create_order(payload:OrderIn,admin:AdminUser=Depends(require_admin),db:Sessi
     obj=OrderRecord(**payload.model_dump());db.add(obj);db.flush();_audit(db,admin,"create","order",obj.id,"Created order "+obj.public_code);db.commit();db.refresh(obj);return _order(obj)
 @app.patch("/api/orders/{order_id}")
 def patch_order(order_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
-    allowed_fields={"customer_name","customer_phone","shop_id","agent_id","address","total_amount","payment_status","status","source","external_ref"}
+    allowed_fields={"customer_name","customer_phone","shop_id","agent_id","address","city","total_amount","payment_status","status","source","external_ref"}
     if not payload or set(payload)-allowed_fields:
         raise HTTPException(status_code=422,detail="Provide only supported order fields; use the status endpoint for workflow transitions.")
     obj=db.get(OrderRecord,order_id)
@@ -473,6 +497,8 @@ def assign_order(order_id:int,payload:AssignmentIn,admin:AdminUser=Depends(requi
     if obj is None:raise HTTPException(status_code=404,detail="Order not found.")
     if agent is None or agent.status!="approved":raise HTTPException(status_code=422,detail="Agent must be approved before receiving orders.")
     if not agent.is_online:raise HTTPException(status_code=409,detail="Only an online agent can receive a delivery assignment.")
+    if "city" in obj.__dict__ and "city" in agent.__dict__ and " ".join(agent.city.split()).casefold() != " ".join(obj.city.split()).casefold():
+        raise HTTPException(status_code=409,detail="Agent and order must belong to the same city.")
     if obj.status not in {"ready_for_pickup","delivery_failed","assigned"}:raise HTTPException(status_code=409,detail="Order must be ready for pickup or awaiting reassignment.")
     old=obj.agent_id;obj.agent_id=agent.id;obj.status="assigned";obj.updated_at=datetime.utcnow();_audit(db,admin,"assign","order",obj.id,f"Agent {old} -> {agent.id}");db.commit();db.refresh(obj);return _order(obj)
 
