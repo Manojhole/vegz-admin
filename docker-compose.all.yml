@@ -28,7 +28,7 @@ services:
       PARTNER_ADMIN_TOKEN: ${PARTNER_ADMIN_TOKEN:-vegz-local-partner-admin-token-change-before-production-123}
       SHOP_SERVICE_URL: http://shop:8000
       AGENT_SERVICE_URL: http://agent:8000
-      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@vegz.local}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@vegz.com}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-VegzLocalAdmin123!}
       BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Vegz Local Admin}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8000,http://localhost:8001,http://localhost:8002,http://localhost:8003,http://127.0.0.1:8000}
