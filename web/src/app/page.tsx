@@ -146,9 +146,18 @@ export default function AdminHomePage(){
  }
 
  const metrics=useMemo(()=>{
-  const root=dashboard||{}, raw=(root.metrics&&typeof root.metrics==="object"?root.metrics:{}) as Row;
-  const candidates: [string, string[]][]=[["Today’s sales",["gross_sales_today","sales_today","today_sales"]],["Orders today",["orders_today","today_orders"]],["Active orders",["active_orders","active_count"]],["Pending shops",["pending_shops"]],["Pending agents",["pending_agents"]]];
-  return candidates.map(([label,keys])=>({label:String(label),number:keys.map(k=>raw[k]).find(v=>v!==undefined&&v!==null)??root[keys[0] as string]??"—"}));
+  const root=dashboard||{};
+  const shops=(root.shops&&typeof root.shops==="object"?root.shops:{}) as Row;
+  const agents=(root.agents&&typeof root.agents==="object"?root.agents:{}) as Row;
+  const orders=(root.orders&&typeof root.orders==="object"?root.orders:{}) as Row;
+  const candidates:[string,unknown][]=[
+   ["Sales today",orders.gross_sales_today??0],
+   ["Orders today",orders.today??0],
+   ["Active orders",orders.active??0],
+   ["Pending shops",shops.pending??0],
+   ["Pending agents",agents.pending??0]
+  ];
+  return candidates.map(([label,number])=>({label,number}));
  },[dashboard]);
 
  if(!token||!admin){
