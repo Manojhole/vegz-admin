@@ -1,0 +1,117 @@
+# Modern-stack development profile. Uses NEW PostgreSQL volume; legacy MySQL/SQLite data is not deleted or migrated.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vegz}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vegz-local-postgres-password-change-me}
+      POSTGRES_DB: postgres
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - vegz_postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vegz} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  admin:
+    build: ../vegz-admin
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vegz}:${POSTGRES_PASSWORD:-vegz-local-postgres-password-change-me}@postgres:5432/vegz_admin
+      JWT_SECRET: ${ADMIN_JWT_SECRET:-vegz-local-admin-jwt-secret-change-before-production-123}
+      PARTNER_ADMIN_TOKEN: ${PARTNER_ADMIN_TOKEN:-vegz-local-partner-admin-token-change-before-production-123}
+      SHOP_SERVICE_URL: http://shop:8000
+      AGENT_SERVICE_URL: http://agent:8000
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@vegz.com}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-VegzLocalAdmin123!}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Vegz Local Admin}
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["8000:8000"]
+    restart: unless-stopped
+
+  agent:
+    build: ../vegz-agent
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vegz}:${POSTGRES_PASSWORD:-vegz-local-postgres-password-change-me}@postgres:5432/vegz_agent
+      JWT_SECRET: ${AGENT_JWT_SECRET:-vegz-local-agent-jwt-secret-change-before-production-123}
+      PARTNER_ADMIN_TOKEN: ${PARTNER_ADMIN_TOKEN:-vegz-local-partner-admin-token-change-before-production-123}
+      DISPATCH_SHARED_SECRET: ${DISPATCH_SHARED_SECRET:-vegz-local-dispatch-shared-secret-change-before-production-123}
+      ADMIN_SERVICE_URL: http://admin:8000
+      AGENT_DEMO_CODE: ${AGENT_DEMO_CODE:-123456}
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["8001:8000"]
+    restart: unless-stopped
+
+  shop:
+    build: ../vegz-shop
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vegz}:${POSTGRES_PASSWORD:-vegz-local-postgres-password-change-me}@postgres:5432/vegz_shop
+      JWT_SECRET: ${SHOP_JWT_SECRET:-vegz-local-shop-jwt-secret-change-before-production-123}
+      PARTNER_ADMIN_TOKEN: ${PARTNER_ADMIN_TOKEN:-vegz-local-partner-admin-token-change-before-production-123}
+      SHOP_INTERNAL_TOKEN: ${SHOP_INTERNAL_TOKEN:-vegz-local-shop-order-token-change-before-production-123}
+      ADMIN_SERVICE_URL: http://admin:8000
+      SHOP_DEMO_CODE: ${SHOP_DEMO_CODE:-123456}
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["8002:8000"]
+    restart: unless-stopped
+
+  user:
+    build: ../vegz-user
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vegz}:${POSTGRES_PASSWORD:-vegz-local-postgres-password-change-me}@postgres:5432/vegz_user
+      JWT_SECRET: ${USER_JWT_SECRET:-vegz-local-user-jwt-secret-change-before-production-123}
+      OTP_SECRET: ${OTP_SECRET:-vegz-local-otp-secret-change-before-production-123}
+      SHOP_SERVICE_URL: http://shop:8000
+      SHOP_PUBLIC_URL: http://localhost:8002
+      SHOP_INTERNAL_TOKEN: ${SHOP_INTERNAL_TOKEN:-vegz-local-shop-order-token-change-before-production-123}
+      AGENT_SERVICE_URL: http://agent:8000
+      DISPATCH_SHARED_SECRET: ${DISPATCH_SHARED_SECRET:-vegz-local-dispatch-shared-secret-change-before-production-123}
+      ACCESS_TOKEN_MINUTES: 10080
+      OTP_TTL_MINUTES: 5
+      DELIVERY_FEE: 25
+      FREE_DELIVERY_MINIMUM: 499
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003
+    depends_on:
+      postgres: { condition: service_healthy }
+      shop: { condition: service_started }
+      agent: { condition: service_started }
+    ports: ["8003:8000"]
+    restart: unless-stopped
+
+  web-user:
+    build: ../vegz-user/web
+    environment: { PORT: "3000", NEXT_TELEMETRY_DISABLED: "1" }
+    ports: ["3000:3000"]
+    restart: unless-stopped
+  web-shop:
+    build: ../vegz-shop/web
+    environment: { PORT: "3000", NEXT_TELEMETRY_DISABLED: "1" }
+    ports: ["3001:3000"]
+    restart: unless-stopped
+  web-agent:
+    build: ../vegz-agent/web
+    environment: { PORT: "3000", NEXT_TELEMETRY_DISABLED: "1" }
+    ports: ["3002:3000"]
+    restart: unless-stopped
+  web-admin:
+    build: ../vegz-admin/web
+    environment: { PORT: "3000", NEXT_TELEMETRY_DISABLED: "1" }
+    ports: ["3003:3000"]
+    restart: unless-stopped
+
+volumes:
+  vegz_postgres_data:
