@@ -424,7 +424,7 @@ def internal_order_sync(payload: dict[str, Any], authorization: str | None = Hea
     if len(public_code) < 3 or len(public_code) > 40 or source not in {"customer", "agent"}:
         raise HTTPException(status_code=422, detail="A valid order code and source are required.")
     status_value = str(payload.get("status") or "placed").strip().lower()
-    valid_statuses = {"placed", "confirmed", "preparing", "ready_for_pickup", "assigned", "picked_up", "out_for_delivery", "delivered", "delivery_failed", "cancelled", "refunded"}
+    valid_statuses = {"placed", "confirmed", "preparing", "ready_for_pickup", "assigned", "accepted", "arrived_at_pickup", "picked_up", "arrived_at_customer", "out_for_delivery", "delivered", "delivery_failed", "declined", "cancelled", "refunded"}
     if status_value not in valid_statuses:
         raise HTTPException(status_code=422, detail="Invalid order status.")
     payment_status = str(payload.get("payment_status") or "pending").strip().lower()
