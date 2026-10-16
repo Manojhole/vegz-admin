@@ -1,112 +1,59 @@
 # Vegz Admin
 
-Central operations console for the Vegz ecosystem. The portal includes a responsive web UI and FastAPI management API for platform records, partner onboarding, order oversight, dispatch assignment, settings and audit history.
+Central operations console for shop/agent onboarding, product moderation, order oversight, customers, settings and audit history.
 
-## Features in this initial implementation
+## Stack
 
-- Admin email/password sign-in with PBKDF2-HMAC-SHA256 password hashing, expiring JWT access tokens and account active-state checks.
-- Super-admin bootstrap from deployment environment; there is no public administrator registration.
-- Dashboard with daily order/gross-sales metrics, active orders, pending shop/agent counts and recent audit activity.
-- Shop onboarding and approval/rejection/suspension; non-approved shops are automatically marked closed and paused.
-- Agent onboarding, approval/suspension, vehicle records and operational availability.
-- Product moderation records with pending/approved/blocked status.
-- Order oversight with valid status transitions, approved-agent assignment, customer/shop/agent associations and duplicate-code rejection.
-- Customer records and account status.
-- Configurable platform settings such as delivery fee, free delivery threshold, commission, maintenance mode, support email and maximum order value.
-- Audit trail for important admin changes.
-- Admin account creation and activation controls restricted to the super-admin role.
-- SQLite development database, SQLAlchemy ORM, Dockerfile, Compose and GitHub Actions checks.
+- Web: Next.js + TypeScript under `web/`
+- API: FastAPI + SQLAlchemy under `backend/`
+- Local multi-app data store: PostgreSQL via `docker-compose.postgres.yml`; standalone API also supports SQLite configuration.
+- User, shop and agent clients keep separately owned schemas and interact through API contracts rather than sharing tables blindly.
 
-## Run locally
+## Existing operations workflows
 
-Requires Python 3.11+.
+- Administrator email/password sign-in; initial super-admin provisioned from environment.
+- Dashboard metrics, orders, shop/agent records and approval/suspension workflows.
+- Product moderation, customer records/status, settings, audit history and super-admin user management.
+- Authenticated partner registration callbacks from shop/agent and approval callbacks to their services when the corresponding URLs and shared token are configured.
 
-```bash
-git clone https://github.com/Manojhole/vegz-admin.git
-cd vegz-admin
-python -m venv .venv
-# macOS/Linux:
-source .venv/bin/activate
-# Windows PowerShell:
-# .venv\Scripts\Activate.ps1
-pip install -r backend/requirements.txt
-cp backend/.env.example .env
-uvicorn backend.app.main:app --reload --port 8000
-```
+**Integration boundary:** existing admin managed-records remain separate from some actual shop/order records. A new approval or order change may not propagate to every service in all deployments; use the PostgreSQL multi-service Compose profile for development, test the callback behavior and complete the authoritative cross-service workflows before production. Do not point all separate SQLAlchemy schemas to a single DB without reviewed migrations and table ownership.
 
-Open the admin console at http://localhost:8000 and the API documentation at http://localhost:8000/docs.
-
-Set BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD in .env before starting the app. The bootstrap password must be at least 14 characters. On first start, the service creates a super-admin account if that email does not already exist. Login uses those credentials. Do not commit .env or use example credentials on a hosted environment.
-
-## Docker
+## Run the Next.js portal
 
 ```bash
-docker compose up --build
+cd web
+npm install
+npm run dev
 ```
 
-Compose requires explicit JWT_SECRET, BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD values in your shell or .env file. Copy backend/.env.example to .env and replace the example values before starting it; the bootstrap password must be at least 14 characters. The container persists its SQLite file in a Docker volume.
+Open `http://localhost:3000`. The Next.js entry screen currently embeds the existing API-backed operations console; the old console remains accessible from the FastAPI service while its screens migrate to native Next.js components.
 
-## Environment
+## Run the complete local PostgreSQL stack
 
-Important variables:
+From this repository root (with sibling `vegz-user`, `vegz-shop`, and `vegz-agent` folders alongside this repository):
 
-- APP_ENV: development or production.
-- DATABASE_URL: SQLite for local setup; use a managed PostgreSQL/MySQL service with TLS, backups and connection limits for production.
-- JWT_SECRET: unique cryptographically random secret, at least 32 characters, configured separately for each environment.
-- ADMIN_TOKEN_TTL_MINUTES: token lifetime.
-- BOOTSTRAP_ADMIN_EMAIL, BOOTSTRAP_ADMIN_PASSWORD, BOOTSTRAP_ADMIN_NAME: initial super-admin creation.
-- CORS_ORIGINS: exact allowed web origins.
-
-The service raises an error in production mode if JWT_SECRET is missing, too short, or left at its local placeholder.
-
-## API summary
-
-All routes except health and login require an Authorization: Bearer access token.
-
-| Area | Endpoints |
-|---|---|
-| Auth | POST /api/auth/login; GET /api/auth/me |
-| Dashboard | GET /api/dashboard |
-| Shops | GET/POST /api/shops; PATCH /api/shops/{id} |
-| Agents | GET/POST /api/agents; PATCH /api/agents/{id} |
-| Products | GET/POST /api/products; PATCH /api/products/{id} |
-| Orders | GET/POST /api/orders; PATCH /api/orders/{id}; PATCH /api/orders/{id}/status; POST /api/orders/{id}/assign |
-| Customers | GET/POST /api/customers; PATCH /api/customers/{id} |
-| Settings | GET /api/settings; PATCH /api/settings/{key} |
-| Audit | GET /api/audit |
-| Admin access | GET/POST /api/admin-users; PATCH /api/admin-users/{id}/active (super-admin only) |
-| Demo | POST /api/dev/seed (super-admin only) |
-
-## Critical production integration boundary
-
-**This repository is not yet the live control plane for the other Vegz apps.** The current vegz-user, vegz-shop and vegz-agent projects have independently developed data models and local databases. The data maintained here is kept in admin-service tables (prefixed managed_) so this console can be built and tested without mutating production systems accidentally.
-
-Before launch, define an authoritative shared platform API/data model and integrate each app with it. Partner/product/order actions here currently affect records stored in this service only; they do not automatically approve real users in the shop app, change the customer app catalog, dispatch actual agent jobs, or perform payment refunds. Avoid directly pointing these different applications at the same DB without reviewed migrations and ownership constraints.
-
-## Security and operations work still required before real production
-
-This is an initial operations-console foundation, not a security-reviewed production release. Before managing real customer data:
-
-1. Add login throttling, account lockout, password reset, MFA/passkeys, short-lived token rotation/revocation and security-event logging.
-2. Enforce fine-grained permissions per endpoint; only admin-user endpoints are currently super-admin restricted.
-3. Use migration-managed schemas (e.g. Alembic), a managed production database, backups, restore drills, retention policy and concurrency tests. Tables currently initialize with create_all for a new environment.
-4. Add strict field validation and permission checks for all state transitions, pagination, redaction of customer PII and IP/user-agent audit context.
-5. Integrate live shop, agent, customer and order services with authenticated service-to-service APIs or an event bus, using idempotency, retries and an authoritative order state.
-6. Wire maintenance settings, delivery fee, commission and price/catalog controls into the customer/shop APIs before exposing those settings to operations staff.
-7. Implement actual payment-gateway refund workflows, COD reconciliation, notification delivery and operational alerting.
-8. Configure HTTPS, secrets manager, restricted production CORS, monitoring, error reporting and production deployment pipeline.
-9. Add CSRF protection if cookie-based sessions are adopted, plus dependency/security scanning and end-to-end tests.
-10. Conduct a privacy and security review before exposing customer addresses, phone numbers and financial information.
-
-## Repository structure
-
+```bash
+docker-compose -f docker-compose.postgres.yml up --build -d
 ```
-backend/app/main.py      FastAPI endpoints, models and access controls
-backend/tests/test_api.py API authorization and workflow tests
-frontend/index.html      Responsive operations console
-frontend/styles.css      UI styling
-frontend/app.js          API-backed views and admin actions
-Dockerfile
-docker-compose.yml
-.github/workflows/ci.yml
-```
+
+- Admin API: `http://localhost:8000`
+- Agent API: `http://localhost:8001`
+- Shop API: `http://localhost:8002`
+- Customer API: `http://localhost:8003`
+- Customer web: `http://localhost:3000`
+- Shop web: `http://localhost:3001`
+- Agent web: `http://localhost:3002`
+- Admin web: `http://localhost:3003`
+
+The Compose profile uses the named `vegz_postgres_data` volume and initializes separate databases. It does not migrate legacy MySQL/SQLite records automatically. Keep existing data; never use `docker-compose down -v` when persistence matters.
+
+## CI
+
+The `dev` workflow tests Python syntax and API unit tests, checks frontend JavaScript, and builds/type-checks the Next.js web app.
+
+## Production blockers
+
+- Full cross-service shared order and customer record reconciliation.
+- Fine-grained role authorization, MFA/password recovery, rate limits and security review.
+- Migration-managed schemas, backup/restore drills, HTTPS, production secrets and monitoring.
+- Payment gateway/refund/COD reconciliation, push notifications and deployment/DNS.
