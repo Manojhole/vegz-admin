@@ -20,3 +20,8 @@ jobs:
         with:
           node-version: "22"
       - run: node --check frontend/app.js
+      - name: Build and type-check Next.js admin web
+        run: |
+          npm --prefix web install --no-audit --no-fund
+          npm --prefix web run build
+          npm --prefix web run typecheck
