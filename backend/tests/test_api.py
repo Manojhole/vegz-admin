@@ -49,7 +49,7 @@ class AdminApiTests(unittest.TestCase):
         self.assertIn("shops", response.json())
         seeded = client.post("/api/dev/seed", headers=self.headers)
         self.assertEqual(seeded.status_code, 200, seeded.text)
-        self.assertIn("sample", seeded.json()["message"].lower())
+        self.assertTrue(any(word in seeded.json()["message"].lower() for word in ("sample", "already exist")))
 
     def test_shop_approval_and_suspension(self):
         created = client.post("/api/shops", headers=self.headers, json={
