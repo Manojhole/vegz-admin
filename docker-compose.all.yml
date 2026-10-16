@@ -34,9 +34,6 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8000,http://localhost:8001,http://localhost:8002,http://localhost:8003,http://127.0.0.1:8000}
     volumes:
       - admin_data:/data
-    depends_on:
-      - shop
-      - agent
     restart: unless-stopped
 
   agent:
@@ -73,8 +70,6 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8000,http://localhost:8001,http://localhost:8002,http://localhost:8003}
     volumes:
       - shop_data:/data
-    depends_on:
-      - admin
     restart: unless-stopped
 
   user:
