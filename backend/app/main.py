@@ -384,6 +384,96 @@ def _sync_partner_approval(kind: str, phone: str, status_value: str):
         raise HTTPException(status_code=502, detail=f"Could not sync {kind} approval to its service; approval was not saved.") from exc
 
 
+@app.post("/api/internal/customer-sync")
+def internal_customer_sync(payload: dict[str, Any], authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    """Upsert a customer profile from the authenticated customer service."""
+    _require_partner_token(authorization)
+    phone = str(payload.get("phone", "")).strip()
+    external_ref = str(payload.get("external_ref", "")).strip()
+    full_name = str(payload.get("full_name") or "Customer").strip()[:120]
+    email = str(payload.get("email") or "").strip()[:180]
+    if len(phone) < 8 or not external_ref or len(external_ref) > 120:
+        raise HTTPException(status_code=422, detail="Customer phone and external reference are required.")
+    customer = db.scalar(select(CustomerRecord).where(CustomerRecord.external_ref == external_ref))
+    if customer is None:
+        customer = db.scalar(select(CustomerRecord).where(CustomerRecord.phone == phone))
+    if customer is None:
+        customer = CustomerRecord(full_name=full_name, phone=phone, email=email, status="active", external_ref=external_ref)
+        db.add(customer)
+    else:
+        customer.full_name = full_name
+        customer.phone = phone
+        if email:
+            customer.email = email
+        customer.external_ref = external_ref
+        # Preserve an admin's explicit blocked/suspended state.
+        if customer.status not in {"blocked", "suspended"}:
+            customer.status = "active"
+    db.commit()
+    db.refresh(customer)
+    return _customer(customer)
+
+
+@app.post("/api/internal/order-sync")
+def internal_order_sync(payload: dict[str, Any], authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    """Idempotently synchronize a customer order or delivery status to the operations console."""
+    _require_partner_token(authorization)
+    public_code = str(payload.get("public_code", "")).strip()
+    source = str(payload.get("source", "")).strip().lower()
+    external_ref = str(payload.get("external_ref", "")).strip()
+    if len(public_code) < 3 or len(public_code) > 40 or source not in {"customer", "agent"}:
+        raise HTTPException(status_code=422, detail="A valid order code and source are required.")
+    status_value = str(payload.get("status") or "placed").strip().lower()
+    valid_statuses = {"placed", "confirmed", "preparing", "ready_for_pickup", "assigned", "picked_up", "out_for_delivery", "delivered", "delivery_failed", "cancelled", "refunded"}
+    if status_value not in valid_statuses:
+        raise HTTPException(status_code=422, detail="Invalid order status.")
+    payment_status = str(payload.get("payment_status") or "pending").strip().lower()
+    if payment_status not in {"pending", "paid", "failed", "refunded"}:
+        raise HTTPException(status_code=422, detail="Invalid payment status.")
+    try:
+        amount = Decimal(str(payload.get("total_amount", "0")))
+        if not amount.is_finite() or amount < 0 or amount > Decimal("10000000"):
+            raise ValueError()
+    except Exception:
+        raise HTTPException(status_code=422, detail="Invalid order total.")
+    city = " ".join(str(payload.get("city") or "Hubli").split()).title()
+    if len(city) < 2 or len(city) > 100:
+        raise HTTPException(status_code=422, detail="Invalid delivery city.")
+    customer_name = str(payload.get("customer_name") or "Customer").strip()[:120]
+    customer_phone = str(payload.get("customer_phone") or "").strip()[:24]
+    address = str(payload.get("address") or "").strip()[:500]
+
+    # The public code is shared across the customer parent order and agent delivery.
+    # Source/external reference makes repeated sync calls idempotent.
+    order = db.scalar(select(OrderRecord).where(OrderRecord.public_code == public_code))
+    if order is not None and order.source not in {"customer", "agent"}:
+        raise HTTPException(status_code=409, detail="Order code is already owned by a different record.")
+    if order is None:
+        order = OrderRecord(
+            public_code=public_code, customer_name=customer_name, customer_phone=customer_phone,
+            address=address, city=city, total_amount=amount, payment_status=payment_status,
+            status=status_value, source=source, external_ref=external_ref,
+        )
+        db.add(order)
+    else:
+        order.customer_name = customer_name or order.customer_name
+        order.customer_phone = customer_phone or order.customer_phone
+        order.address = address or order.address
+        order.city = city
+        order.total_amount = amount
+        order.payment_status = payment_status
+        order.status = status_value
+        if source == "customer":
+            order.source = "customer"
+            if external_ref:
+                order.external_ref = external_ref
+        elif not order.external_ref:
+            order.external_ref = external_ref
+    db.commit()
+    db.refresh(order)
+    return _order(order)
+
+
 @app.get("/api/health")
 def health():
     """Report healthy only when the configured SQL database is reachable."""
