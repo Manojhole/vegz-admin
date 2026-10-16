@@ -33,7 +33,15 @@ services:
       CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003
     depends_on:
       postgres: { condition: service_healthy }
+      shop: { condition: service_healthy }
+      agent: { condition: service_healthy }
     ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
     restart: unless-stopped
 
   agent:
@@ -50,6 +58,12 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
     ports: ["8001:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
     restart: unless-stopped
 
   shop:
@@ -66,6 +80,12 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
     ports: ["8002:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
     restart: unless-stopped
 
   user:
@@ -87,29 +107,55 @@ services:
       CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003
     depends_on:
       postgres: { condition: service_healthy }
-      shop: { condition: service_started }
-      agent: { condition: service_started }
+      shop: { condition: service_healthy }
+      agent: { condition: service_healthy }
     ports: ["8003:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
     restart: unless-stopped
 
   web-user:
-    build: ../vegz-user/web
+    build:
+      context: ../vegz-user/web
+      args:
+        NEXT_PUBLIC_VEGZ_API_URL: ${NEXT_PUBLIC_VEGZ_API_URL:-http://localhost:8003}
     environment: { PORT: "3000", NEXT_TELEMETRY_DISABLED: "1" }
+    depends_on:
+      user: { condition: service_healthy }
     ports: ["3000:3000"]
     restart: unless-stopped
   web-shop:
-    build: ../vegz-shop/web
+    build:
+      context: ../vegz-shop/web
+      args:
+        NEXT_PUBLIC_VEGZ_SHOP_API_URL: ${NEXT_PUBLIC_VEGZ_SHOP_API_URL:-http://localhost:8002}
     environment: { PORT: "3000", NEXT_TELEMETRY_DISABLED: "1" }
+    depends_on:
+      shop: { condition: service_healthy }
     ports: ["3001:3000"]
     restart: unless-stopped
   web-agent:
-    build: ../vegz-agent/web
+    build:
+      context: ../vegz-agent/web
+      args:
+        NEXT_PUBLIC_VEGZ_AGENT_API_URL: ${NEXT_PUBLIC_VEGZ_AGENT_API_URL:-http://localhost:8001}
     environment: { PORT: "3000", NEXT_TELEMETRY_DISABLED: "1" }
+    depends_on:
+      agent: { condition: service_healthy }
     ports: ["3002:3000"]
     restart: unless-stopped
   web-admin:
-    build: ../vegz-admin/web
+    build:
+      context: ../vegz-admin/web
+      args:
+        NEXT_PUBLIC_VEGZ_ADMIN_API_URL: ${NEXT_PUBLIC_VEGZ_ADMIN_API_URL:-http://localhost:8000}
     environment: { PORT: "3000", NEXT_TELEMETRY_DISABLED: "1" }
+    depends_on:
+      admin: { condition: service_healthy }
     ports: ["3003:3000"]
     restart: unless-stopped
 
