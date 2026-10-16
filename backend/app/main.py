@@ -385,7 +385,14 @@ def _sync_partner_approval(kind: str, phone: str, status_value: str):
 
 
 @app.get("/api/health")
-def health(): return {"status":"ok","service":"vegz-admin-api"}
+def health():
+    """Report healthy only when the configured SQL database is reachable."""
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database unavailable") from exc
+    return {"status": "ok", "service": "vegz-admin-api", "database": "connected"}
 @app.post("/api/auth/login")
 def login(payload:LoginIn,db:Session=Depends(get_db)):
     admin=db.scalar(select(AdminUser).where(AdminUser.email==str(payload.email).lower()))
