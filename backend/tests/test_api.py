@@ -67,6 +67,43 @@ class AdminApiTests(unittest.TestCase):
         self.assertFalse(suspended.json()["is_open"])
         self.assertFalse(suspended.json()["accepts_orders"])
 
+
+    def test_creating_preapproved_shop_requires_real_service_sync(self):
+        from unittest.mock import Mock, patch
+        from backend.app.main import ShopRecord, SessionLocal
+        callback_response = Mock()
+        callback_response.raise_for_status.return_value = None
+        with patch("backend.app.main.SHOP_SERVICE_URL", "http://shop.test"), patch(
+            "backend.app.main.httpx.post", return_value=callback_response
+        ) as callback:
+            response = client.post("/api/shops", headers=self.headers, json={
+                "name": "Preapproved Shop", "owner_name": "Owner", "phone": "+919900001111",
+                "city": "Sync City", "shop_type": "vegetable", "status": "approved"
+            })
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(response.json()["status"], "approved")
+        self.assertEqual(callback.call_args.args[0], "http://shop.test/api/internal/admin-approval")
+        self.assertEqual(callback.call_args.kwargs["json"], {"phone": "+919900001111", "status": "approved"})
+
+    def test_preapproved_shop_is_not_saved_when_service_sync_fails(self):
+        from unittest.mock import Mock, patch
+        from backend.app.main import ShopRecord, SessionLocal
+        import httpx
+        failure = Mock()
+        failure.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "not found", request=Mock(), response=Mock(status_code=404)
+        )
+        with patch("backend.app.main.SHOP_SERVICE_URL", "http://shop.test"), patch(
+            "backend.app.main.httpx.post", return_value=failure
+        ):
+            response = client.post("/api/shops", headers=self.headers, json={
+                "name": "Missing Real Shop", "owner_name": "Owner", "phone": "+919900001112",
+                "city": "Sync City Two", "shop_type": "vegetable", "status": "approved"
+            })
+        self.assertEqual(response.status_code, 502, response.text)
+        with SessionLocal() as db:
+            self.assertIsNone(db.scalar(__import__("sqlalchemy").select(ShopRecord).where(ShopRecord.phone == "+919900001112")))
+
     def test_order_creation_assignment_and_status_transition(self):
         shop = client.post("/api/shops", headers=self.headers, json={"name": "Order Shop", "status": "approved", "shop_type": "grocery"}).json()
         agent = client.post("/api/agents", headers=self.headers, json={"full_name": "Courier Test", "status": "approved", "is_online": True}).json()
