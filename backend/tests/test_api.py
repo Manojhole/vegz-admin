@@ -173,5 +173,43 @@ class AdminApiTests(unittest.TestCase):
         self.assertEqual(kwargs["json"], {"phone": "+919988776656", "status": "approved"})
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer test-partner-admin-token-that-is-long-enough")
 
+    def test_internal_customer_sync_is_authenticated_and_idempotent(self):
+        denied = client.post("/api/internal/customer-sync", json={
+            "full_name": "Synced Customer", "phone": "+919988770001", "external_ref": "vegz-user:901"
+        })
+        self.assertEqual(denied.status_code, 401)
+        headers = {"Authorization": "Bearer test-partner-admin-token-that-is-long-enough"}
+        payload = {"full_name": "Synced Customer", "phone": "+919988770001", "external_ref": "vegz-user:901"}
+        first = client.post("/api/internal/customer-sync", headers=headers, json=payload)
+        second = client.post("/api/internal/customer-sync", headers=headers, json=payload)
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(second.status_code, 200, second.text)
+        self.assertEqual(first.json()["id"], second.json()["id"])
+        self.assertEqual(second.json()["phone"], payload["phone"])
+
+    def test_internal_order_sync_is_idempotent_and_accepts_agent_statuses(self):
+        headers = {"Authorization": "Bearer test-partner-admin-token-that-is-long-enough"}
+        customer_payload = {
+            "public_code": "VGZ-SYNC-ORDER-9001", "source": "customer",
+            "external_ref": "vegz-user:order:9001", "customer_name": "Sync Customer",
+            "customer_phone": "+919988770002", "address": "Market Road, Hubli",
+            "city": "Hubli", "total_amount": "149.00", "payment_status": "pending",
+            "status": "placed",
+        }
+        first = client.post("/api/internal/order-sync", headers=headers, json=customer_payload)
+        retry = client.post("/api/internal/order-sync", headers=headers, json=customer_payload)
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(retry.status_code, 200, retry.text)
+        self.assertEqual(first.json()["id"], retry.json()["id"])
+        agent_event = {
+            **customer_payload, "source": "agent", "external_ref": "vegz-agent:77",
+            "status": "arrived_at_customer",
+        }
+        updated = client.post("/api/internal/order-sync", headers=headers, json=agent_event)
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()["id"], first.json()["id"])
+        self.assertEqual(updated.json()["status"], "arrived_at_customer")
+        self.assertEqual(updated.json()["source"], "customer")
+
 if __name__ == "__main__":
     unittest.main()
