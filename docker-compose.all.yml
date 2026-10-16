@@ -1,0 +1,113 @@
+# Local development only. Override demo secrets in a private .env before sharing.
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: vegz
+      MYSQL_USER: vegz_user
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-vegz-local-db-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-vegz-local-root-password}
+    volumes:
+      - vegz_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: ../vegz-admin
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: development
+      DATABASE_URL: sqlite:////data/vegz_admin.db
+      JWT_SECRET: ${ADMIN_JWT_SECRET:-vegz-local-admin-jwt-secret-change-before-production-123}
+      PARTNER_ADMIN_TOKEN: ${PARTNER_ADMIN_TOKEN:-vegz-local-partner-admin-token-change-before-production-123}
+      SHOP_SERVICE_URL: http://shop:8000
+      AGENT_SERVICE_URL: http://agent:8000
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@vegz.local}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-VegzLocalAdmin123!}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Vegz Local Admin}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8000,http://localhost:8001,http://localhost:8002,http://localhost:8003,http://127.0.0.1:8000}
+    volumes:
+      - admin_data:/data
+    depends_on:
+      - shop
+      - agent
+    restart: unless-stopped
+
+  agent:
+    build:
+      context: ../vegz-agent
+    ports:
+      - "8001:8000"
+    environment:
+      APP_ENV: development
+      DATABASE_URL: sqlite:////data/vegz_agent.db
+      JWT_SECRET: ${AGENT_JWT_SECRET:-vegz-local-agent-jwt-secret-change-before-production-123}
+      PARTNER_ADMIN_TOKEN: ${PARTNER_ADMIN_TOKEN:-vegz-local-partner-admin-token-change-before-production-123}
+      DISPATCH_SHARED_SECRET: ${DISPATCH_SHARED_SECRET:-vegz-local-dispatch-shared-secret-change-before-production-123}
+      ADMIN_SERVICE_URL: http://admin:8000
+      AGENT_DEMO_CODE: ${AGENT_DEMO_CODE:-123456}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8000,http://localhost:8001,http://localhost:8002,http://localhost:8003}
+    volumes:
+      - agent_data:/data
+    restart: unless-stopped
+
+  shop:
+    build:
+      context: ../vegz-shop
+    ports:
+      - "8002:8000"
+    environment:
+      APP_ENV: development
+      DATABASE_URL: sqlite:////data/vegz_shop.db
+      JWT_SECRET: ${SHOP_JWT_SECRET:-vegz-local-shop-jwt-secret-change-before-production-123}
+      PARTNER_ADMIN_TOKEN: ${PARTNER_ADMIN_TOKEN:-vegz-local-partner-admin-token-change-before-production-123}
+      SHOP_INTERNAL_TOKEN: ${SHOP_INTERNAL_TOKEN:-vegz-local-shop-order-token-change-before-production-123}
+      ADMIN_SERVICE_URL: http://admin:8000
+      SHOP_DEMO_CODE: ${SHOP_DEMO_CODE:-123456}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8000,http://localhost:8001,http://localhost:8002,http://localhost:8003}
+    volumes:
+      - shop_data:/data
+    depends_on:
+      - admin
+    restart: unless-stopped
+
+  user:
+    build:
+      context: ../vegz-user
+    ports:
+      - "8003:8000"
+    environment:
+      APP_ENV: development
+      DATABASE_URL: mysql+pymysql://vegz_user:${MYSQL_PASSWORD:-vegz-local-db-password}@mysql:3306/vegz
+      JWT_SECRET: ${USER_JWT_SECRET:-vegz-local-user-jwt-secret-change-before-production-123}
+      OTP_SECRET: ${OTP_SECRET:-vegz-local-otp-secret-change-before-production-123}
+      SHOP_SERVICE_URL: http://shop:8000
+      SHOP_PUBLIC_URL: http://localhost:8002
+      SHOP_INTERNAL_TOKEN: ${SHOP_INTERNAL_TOKEN:-vegz-local-shop-order-token-change-before-production-123}
+      AGENT_SERVICE_URL: http://agent:8000
+      DISPATCH_SHARED_SECRET: ${DISPATCH_SHARED_SECRET:-vegz-local-dispatch-shared-secret-change-before-production-123}
+      ACCESS_TOKEN_MINUTES: 10080
+      OTP_TTL_MINUTES: 5
+      DELIVERY_FEE: 25
+      FREE_DELIVERY_MINIMUM: 499
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8000,http://localhost:8001,http://localhost:8002,http://localhost:8003,https://vegz.online,https://www.vegz.online}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      shop:
+        condition: service_started
+      agent:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  vegz_mysql_data:
+  admin_data:
+  agent_data:
+  shop_data:
