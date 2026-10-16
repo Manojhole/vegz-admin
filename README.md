@@ -26,7 +26,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. The Next.js entry screen currently embeds the existing API-backed operations console; the old console remains accessible from the FastAPI service while its screens migrate to native Next.js components.
+Open `http://localhost:3000`. The Next.js operations workspace calls the FastAPI admin API for administrator sign-in, dashboard metrics, shop/agent approval and suspension, product moderation, order status transitions, customer access, editable settings, audit history and (for super-admins) admin-account controls.
 
 ## Run the complete local PostgreSQL stack
 
