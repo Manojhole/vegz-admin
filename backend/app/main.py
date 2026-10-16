@@ -224,7 +224,9 @@ ensure_default_settings()
 
 
 class LoginIn(BaseModel):
-    email: EmailStr
+    # Development installs may use reserved local domains such as vegz.local.
+    # Production still authenticates against the exact configured account email.
+    email: str = Field(min_length=3, max_length=180, pattern=r"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
     password: str = Field(min_length=1, max_length=200)
 class ShopIn(BaseModel):
     name: str = Field(min_length=2, max_length=140)
