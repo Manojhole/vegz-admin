@@ -423,7 +423,17 @@ def create_shop(payload:ShopIn,admin:AdminUser=Depends(require_admin),db:Session
     values=payload.model_dump();values["city"]=city
     obj=ShopRecord(**values)
     if obj.status!="approved":obj.is_open=False;obj.accepts_orders=False
-    db.add(obj);db.flush();_audit(db,admin,"create","shop",obj.id,"Created shop "+obj.name);db.commit();db.refresh(obj);return _shop(obj)
+    db.add(obj);db.flush()
+    try:
+        # Never report an approved admin record unless the real Shop service accepted it.
+        if obj.status != "pending":
+            _sync_partner_approval("shop", obj.phone, obj.status)
+        _audit(db,admin,"create","shop",obj.id,"Created shop "+obj.name)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(obj);return _shop(obj)
 @app.patch("/api/shops/{shop_id}")
 def patch_shop(shop_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
     allowed={"name","owner_name","phone","email","address","city","shop_type","status","is_open","accepts_orders","commission_pct","external_ref"}
@@ -458,7 +468,17 @@ def create_agent(payload:AgentIn,admin:AdminUser=Depends(require_admin),db:Sessi
     values=payload.model_dump();values["city"]=" ".join(payload.city.split()).title()
     obj=AgentRecord(**values)
     if obj.status!="approved":obj.is_online=False
-    db.add(obj);db.flush();_audit(db,admin,"create","agent",obj.id,"Created agent "+obj.full_name);db.commit();db.refresh(obj);return _agent(obj)
+    db.add(obj);db.flush()
+    try:
+        # Never report an approved admin record unless the real Agent service accepted it.
+        if obj.status != "pending":
+            _sync_partner_approval("agent", obj.phone, obj.status)
+        _audit(db,admin,"create","agent",obj.id,"Created agent "+obj.full_name)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(obj);return _agent(obj)
 @app.patch("/api/agents/{agent_id}")
 def patch_agent(agent_id:int,payload:dict[str,Any],admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
     allowed={"full_name","phone","email","vehicle_type","vehicle_number","city","status","is_online","external_ref"}
