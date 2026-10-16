@@ -1,9 +1,9 @@
 name: Vegz Admin CI
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 jobs:
   checks:
     runs-on: ubuntu-latest
