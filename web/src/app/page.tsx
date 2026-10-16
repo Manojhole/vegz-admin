@@ -147,7 +147,7 @@ export default function AdminHomePage(){
 
  const metrics=useMemo(()=>{
   const root=dashboard||{}, raw=(root.metrics&&typeof root.metrics==="object"?root.metrics:{}) as Row;
-  const candidates=[["Today’s sales",["gross_sales_today","sales_today","today_sales"]],["Orders today",["orders_today","today_orders"]],["Active orders",["active_orders","active_count"]],["Pending shops",["pending_shops"]],["Pending agents",["pending_agents"]]];
+  const candidates: [string, string[]][]=[["Today’s sales",["gross_sales_today","sales_today","today_sales"]],["Orders today",["orders_today","today_orders"]],["Active orders",["active_orders","active_count"]],["Pending shops",["pending_shops"]],["Pending agents",["pending_agents"]]];
   return candidates.map(([label,keys])=>({label:String(label),number:keys.map(k=>raw[k]).find(v=>v!==undefined&&v!==null)??root[keys[0] as string]??"—"}));
  },[dashboard]);
 
