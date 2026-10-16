@@ -1,0 +1,4 @@
+CREATE DATABASE vegz_user;
+CREATE DATABASE vegz_shop;
+CREATE DATABASE vegz_agent;
+CREATE DATABASE vegz_admin;
