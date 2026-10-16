@@ -53,6 +53,7 @@ services:
       PARTNER_ADMIN_TOKEN: ${PARTNER_ADMIN_TOKEN:-vegz-local-partner-admin-token-change-before-production-123}
       DISPATCH_SHARED_SECRET: ${DISPATCH_SHARED_SECRET:-vegz-local-dispatch-shared-secret-change-before-production-123}
       ADMIN_SERVICE_URL: http://admin:8000
+      USER_SERVICE_URL: http://user:8000
       AGENT_DEMO_CODE: ${AGENT_DEMO_CODE:-123456}
       CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003
     depends_on:
