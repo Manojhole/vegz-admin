@@ -640,9 +640,9 @@ def _sync_shop_product_approval(external_ref: str, status_value: str) -> None:
     if not external_ref.startswith(prefix):
         return
     parts = external_ref.split(":")
-    if len(parts) != 4:
+    if len(parts) != 3:
         raise HTTPException(status_code=422, detail="Invalid shop product reference; moderation was not saved.")
-    phone, product_id = parts[2], parts[3]
+    phone, product_id = parts[1], parts[2]
     if not SHOP_SERVICE_URL:
         if APP_ENV == "production":
             raise HTTPException(status_code=503, detail="Shop service URL is not configured; moderation was not saved.")
