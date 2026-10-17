@@ -414,6 +414,48 @@ def internal_customer_sync(payload: dict[str, Any], authorization: str | None = 
     return _customer(customer)
 
 
+@app.post("/api/internal/product-sync")
+def internal_product_sync(payload: dict[str, Any], authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    """Idempotently queue shop catalog items for administrator moderation."""
+    _require_partner_token(authorization)
+    phone = str(payload.get("phone", "")).strip()
+    try:
+        product_id = int(payload.get("product_id", 0))
+        price = Decimal(str(payload.get("price", "0")))
+        stock_qty = int(payload.get("stock_qty", 0))
+    except (TypeError, ValueError, ArithmeticError):
+        raise HTTPException(status_code=422, detail="Invalid product values.")
+    name = str(payload.get("name", "")).strip()
+    if len(phone) < 8 or product_id < 1 or not name or len(name) > 140:
+        raise HTTPException(status_code=422, detail="Shop phone, product ID and name are required.")
+    if price <= 0 or price > Decimal("1000000") or stock_qty < 0 or stock_qty > 10000000:
+        raise HTTPException(status_code=422, detail="Product price or stock is outside the allowed range.")
+    status_value = str(payload.get("status", "pending"))
+    if status_value not in {"pending", "approved", "blocked"}:
+        raise HTTPException(status_code=422, detail="Invalid product moderation status.")
+    external_ref = f"vegz-shop-product:{phone}:{product_id}"
+    obj = db.scalar(select(ProductRecord).where(ProductRecord.external_ref == external_ref))
+    shop = db.scalar(select(ShopRecord).where(ShopRecord.phone == phone))
+    if obj is None:
+        obj = ProductRecord(shop_id=shop.id if shop else None, external_ref=external_ref, name=name,
+                            category=str(payload.get("category", "Vegetables"))[:60], price=price,
+                            stock_qty=stock_qty, status=status_value)
+        db.add(obj)
+    else:
+        obj.shop_id = shop.id if shop else obj.shop_id
+        obj.name = name
+        obj.category = str(payload.get("category", obj.category))[:60]
+        obj.price = price
+        obj.stock_qty = stock_qty
+        # Preserve an admin moderation decision when a shop refreshes product details.
+        if obj.status == "pending":
+            obj.status = status_value
+        obj.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(obj)
+    return _product(obj)
+
+
 @app.post("/api/internal/order-sync")
 def internal_order_sync(payload: dict[str, Any], authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
     """Idempotently synchronize a customer order or delivery status to the operations console."""
@@ -593,6 +635,30 @@ def patch_agent(agent_id:int,payload:dict[str,Any],admin:AdminUser=Depends(requi
     obj.updated_at=datetime.utcnow();_audit(db,admin,"update","agent",obj.id,"Updated fields="+",".join(payload.keys()));db.commit();db.refresh(obj);return _agent(obj)
 
 
+def _sync_shop_product_approval(external_ref: str, status_value: str) -> None:
+    prefix = "vegz-shop-product:"
+    if not external_ref.startswith(prefix):
+        return
+    parts = external_ref.split(":")
+    if len(parts) != 4:
+        raise HTTPException(status_code=422, detail="Invalid shop product reference; moderation was not saved.")
+    phone, product_id = parts[2], parts[3]
+    if not SHOP_SERVICE_URL:
+        if APP_ENV == "production":
+            raise HTTPException(status_code=503, detail="Shop service URL is not configured; moderation was not saved.")
+        return
+    try:
+        response = httpx.post(
+            SHOP_SERVICE_URL + "/api/internal/product-approval",
+            headers={"Authorization": "Bearer " + PARTNER_ADMIN_TOKEN},
+            json={"phone": phone, "product_id": int(product_id), "status": status_value},
+            timeout=6.0,
+        )
+        response.raise_for_status()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="Could not sync product moderation to the shop service; moderation was not saved.") from exc
+
+
 @app.get("/api/products")
 def list_products(status_filter:str|None=None,q:str|None=Query(default=None,max_length=120),admin:AdminUser=Depends(require_admin),db:Session=Depends(get_db)):
     query=select(ProductRecord).order_by(desc(ProductRecord.created_at))
@@ -622,6 +688,8 @@ def patch_product(product_id:int,payload:dict[str,Any],admin:AdminUser=Depends(r
         except Exception: raise HTTPException(status_code=422,detail="Product price must be positive and within the allowed range.")
     if "stock_qty" in payload and (not isinstance(payload["stock_qty"],int) or payload["stock_qty"]<0 or payload["stock_qty"]>10000000):
         raise HTTPException(status_code=422,detail="Stock quantity must be a non-negative whole number.")
+    if "status" in payload and payload["status"] != obj.status:
+        _sync_shop_product_approval(obj.external_ref, payload["status"])
     for key,value in payload.items():setattr(obj,key,value)
     obj.updated_at=datetime.utcnow();_audit(db,admin,"update","product",obj.id,"Updated fields="+",".join(payload.keys()));db.commit();db.refresh(obj);return _product(obj)
 
