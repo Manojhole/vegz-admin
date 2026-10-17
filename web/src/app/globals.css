@@ -28,3 +28,34 @@
 @media(max-width:1100px){.metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.admin-layout{grid-template-columns:190px minmax(0,1fr)}.quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.admin-login{grid-template-columns:1fr;padding:28px 0}.admin-layout{grid-template-columns:1fr}.admin-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-right:0;border-bottom:1px solid var(--admin-line);padding:0 0 14px}.nav-label,.nav-note{display:none}.nav-button{padding:9px 7px;font-size:10px}.nav-button>span{width:16px;font-size:14px}.nav-button small{display:none}.admin-user>div{display:none}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.record-card{flex-wrap:wrap}.record-body{min-width:calc(100% - 55px)}.record-actions{max-width:none;width:100%;padding-left:49px;justify-content:flex-start}.page-heading{align-items:flex-start}.page-heading p:last-child{max-width:530px}.header-label{font-size:9px}.admin-header{gap:10px}}
 @media(max-width:460px){.quick-grid{grid-template-columns:1fr 1fr}.metric-grid{grid-template-columns:1fr 1fr}.metric-card{padding:12px}.metric-card strong{font-size:22px}.admin-header .brand{font-size:22px}.admin-header .brand-mark{width:32px;height:32px}.header-label{display:none}.admin-user{margin-left:auto}.page-heading{gap:8px}.refresh-button{padding:8px;font-size:10px}.record-actions{padding-left:0}}
+
+
+/* Vegz polish: gentle motion, tactile feedback, accessible focus and reduced-motion support. */
+:root{--vegz-motion-fast:160ms;--vegz-motion-base:240ms;--vegz-shadow-soft:0 12px 32px rgba(25,65,39,.075);--vegz-shadow-lift:0 20px 42px rgba(25,65,39,.13)}
+html{scroll-behavior:smooth;scroll-padding-top:24px}
+body{background-image:radial-gradient(ellipse at 4% 0%,rgba(223,239,208,.42),transparent 34%),radial-gradient(ellipse at 98% 16%,rgba(255,232,202,.28),transparent 30%);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+:where(button,a,input,select,textarea,[role="button"]){-webkit-tap-highlight-color:transparent}
+:where(button,a,input,select,textarea,[role="button"]):focus-visible{outline:3px solid rgba(48,132,85,.42);outline-offset:3px}
+:where(button,a,[role="button"]){transition:transform var(--vegz-motion-fast) ease,box-shadow var(--vegz-motion-fast) ease,background-color var(--vegz-motion-fast) ease,border-color var(--vegz-motion-fast) ease,color var(--vegz-motion-fast) ease}
+:where(button:not(:disabled),[role="button"]):active{transform:scale(.98)}
+:where(button:disabled){cursor:not-allowed;opacity:.58}
+:where(input,select,textarea){transition:border-color var(--vegz-motion-fast) ease,box-shadow var(--vegz-motion-fast) ease}
+:where(input,select,textarea):focus{border-color:#83b68a!important;box-shadow:0 0 0 4px rgba(70,143,83,.12);outline:0}
+:where(.store-header,.portal-header,.agent-topbar,.admin-header){animation:vegz-enter-down .48s cubic-bezier(.2,.75,.25,1) both}
+:where(.store-hero,.portal-intro,.agent-login-layout,.admin-login,.login-intro){animation:vegz-enter-up .62s cubic-bezier(.2,.75,.25,1) both}
+:where(.product-card,.shop-product-card,.record-card,.admin-stat-card,.stat-card,.agent-delivery-card,.shop-order-card,.login-card,.checkout-card,.live-portal,.admin-panel,.shop-panel,.agent-panel,.dashboard-card){animation:vegz-enter-up .48s cubic-bezier(.2,.75,.25,1) both;box-shadow:0 5px 18px rgba(25,65,39,.035);transition:transform var(--vegz-motion-base) cubic-bezier(.2,.75,.25,1),box-shadow var(--vegz-motion-base) ease,border-color var(--vegz-motion-base) ease}
+:where(.product-card,.shop-product-card,.record-card,.admin-stat-card,.stat-card,.agent-delivery-card,.shop-order-card,.login-card,.checkout-card,.live-portal,.admin-panel,.shop-panel,.agent-panel,.dashboard-card):hover{box-shadow:var(--vegz-shadow-soft);border-color:#cbdcc7}
+:where(.product-card,.shop-product-card,.record-card,.admin-stat-card,.stat-card,.agent-delivery-card,.shop-order-card):hover{transform:translateY(-3px)}
+:where(.product-image,.shop-product-gallery,.agent-art,.market-art){isolation:isolate}
+:where(.product-image img,.shop-product-gallery img){transition:transform 420ms cubic-bezier(.2,.75,.25,1),filter 420ms ease}
+:where(.product-card,.shop-product-card):hover :where(.product-image img,.shop-product-gallery img){transform:scale(1.045);filter:saturate(1.04)}
+:where(.primary-link,.action-primary,.agent-primary,.shop-primary,.add-button):hover{box-shadow:0 8px 18px rgba(23,107,72,.17);transform:translateY(-1px)}
+:where(.category,.agent-choices button,.category-chip){transition:background-color var(--vegz-motion-fast) ease,color var(--vegz-motion-fast) ease,border-color var(--vegz-motion-fast) ease,transform var(--vegz-motion-fast) ease}
+:where(.category,.agent-choices button,.category-chip):hover{transform:translateY(-1px)}
+:where(.error-message,.notice-message,.success-message){animation:vegz-pop-in .24s ease-out both}
+::selection{background:rgba(74,145,85,.2);color:inherit}
+@keyframes vegz-enter-up{from{opacity:0;transform:translate3d(0,14px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes vegz-enter-down{from{opacity:0;transform:translate3d(0,-8px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes vegz-pop-in{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:scale(1)}}
+@media(hover:hover) and (pointer:fine){:where(.product-card,.shop-product-card,.record-card,.admin-stat-card,.stat-card,.agent-delivery-card,.shop-order-card):hover{box-shadow:var(--vegz-shadow-lift)}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
