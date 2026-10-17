@@ -211,5 +211,38 @@ class AdminApiTests(unittest.TestCase):
         self.assertEqual(updated.json()["status"], "arrived_at_customer")
         self.assertEqual(updated.json()["source"], "customer")
 
+
+    def test_shop_product_sync_is_idempotent_and_starts_pending(self):
+        headers = {"Authorization": "Bearer test-partner-admin-token-that-is-long-enough"}
+        payload = {"phone": "+919900001234", "product_id": 71, "name": "Tomato",
+                   "category": "Vegetables", "price": "34.50", "stock_qty": 12, "status": "pending"}
+        denied = client.post("/api/internal/product-sync", json=payload)
+        self.assertEqual(denied.status_code, 401)
+        first = client.post("/api/internal/product-sync", headers=headers, json=payload)
+        second = client.post("/api/internal/product-sync", headers=headers, json=payload)
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(second.status_code, 200, second.text)
+        self.assertEqual(first.json()["id"], second.json()["id"])
+        self.assertEqual(second.json()["status"], "pending")
+        self.assertEqual(second.json()["external_ref"], "vegz-shop-product:+919900001234:71")
+
+    def test_product_approval_is_propagated_before_admin_status_is_saved(self):
+        from unittest.mock import Mock, patch
+        created = client.post("/api/internal/product-sync", headers={
+            "Authorization": "Bearer test-partner-admin-token-that-is-long-enough"
+        }, json={"phone": "+919900001235", "product_id": 72, "name": "Potato",
+                 "category": "Vegetables", "price": "28", "stock_qty": 7, "status": "pending"})
+        self.assertEqual(created.status_code, 200, created.text)
+        with patch("backend.app.main.SHOP_SERVICE_URL", "http://shop.test"), patch(
+            "backend.app.main.httpx.post", return_value=Mock(raise_for_status=Mock())
+        ) as callback:
+            response = client.patch(f"/api/products/{created.json()['id']}", headers=self.headers, json={"status": "approved"})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["status"], "approved")
+        self.assertEqual(callback.call_args.args[0], "http://shop.test/api/internal/product-approval")
+        self.assertEqual(callback.call_args.kwargs["json"], {
+            "phone": "+919900001235", "product_id": 72, "status": "approved"
+        })
+
 if __name__ == "__main__":
     unittest.main()
