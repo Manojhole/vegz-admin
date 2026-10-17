@@ -14,6 +14,7 @@ Central operations console for shop/agent onboarding, product moderation, order 
 - Administrator email/password sign-in; initial super-admin provisioned from environment.
 - Dashboard metrics, orders, shop/agent records and approval/suspension workflows.
 - Product moderation, customer records/status, settings, audit history and super-admin user management.
+- Shop-created products are idempotently synchronized into the moderation queue; approve/block decisions call back to the owning shop service before the admin moderation status is committed.
 - Authenticated partner registration callbacks from shop/agent and approval callbacks to their services when the corresponding URLs and shared token are configured.
 
 **Integration boundary:** existing admin managed-records remain separate from some actual shop/order records. A new approval or order change may not propagate to every service in all deployments; use the PostgreSQL multi-service Compose profile for development, test the callback behavior and complete the authoritative cross-service workflows before production. Do not point all separate SQLAlchemy schemas to a single DB without reviewed migrations and table ownership.
