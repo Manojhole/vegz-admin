@@ -370,6 +370,28 @@ def partner_agent_request(payload: dict[str, Any], authorization: str | None = H
     return _agent(obj)
 
 
+@app.post("/api/internal/agent-presence")
+def internal_agent_presence(payload: dict[str, Any], authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    """Update the admin dashboard from the agent service without changing approval status."""
+    _require_partner_token(authorization)
+    phone = str(payload.get("phone", "")).strip()
+    if len(phone) < 8:
+        raise HTTPException(status_code=422, detail="Valid agent phone is required.")
+    agent = db.scalar(select(AgentRecord).where(AgentRecord.phone == phone))
+    if agent is None:
+        raise HTTPException(status_code=404, detail="Agent registration not found in admin.")
+    verified = payload.get("is_verified") is True
+    requested_online = payload.get("is_online") is True
+    # The agent service cannot approve itself; admin approval remains authoritative.
+    agent.is_online = bool(requested_online and verified and agent.status == "approved")
+    if payload.get("external_ref"):
+        agent.external_ref = str(payload["external_ref"])[:120]
+    agent.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(agent)
+    return _agent(agent)
+
+
 def _sync_partner_approval(kind: str, phone: str, status_value: str):
     base = SHOP_SERVICE_URL if kind == "shop" else AGENT_SERVICE_URL
     token = PARTNER_ADMIN_TOKEN
